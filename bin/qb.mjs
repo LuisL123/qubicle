@@ -292,6 +292,19 @@ function cmdDigest([kind]) {
 
 // ---------- status ----------
 
+function cmdOpen() {
+  // Make sure the daemon and rig are up (no-op if they already are), then show the tiles.
+  spawnSync("bash", [path.join(ROOT, "scripts", "boot.sh")], { stdio: "inherit" });
+  const r = spawnSync("rig", ["terminal", "open", RIG], { stdio: "inherit" });
+  if (r.status !== 0) log("qb: no tiles? Start herdr first (run `herdr`), then run qb open inside it.");
+}
+
+// Local workspaces: folders the team works in that aren't GitHub repos.
+function cmdWorkspaces() {
+  const raw = YAML.parse(fs.readFileSync(path.join(ROOT, "repos.yaml"), "utf8")) || {};
+  for (const w of raw.workspaces || []) console.log(`${w.name}\t${w.path.replace(/^~/, os.homedir())}`);
+}
+
 function cmdStatus() {
   console.log(`mode:   ${getMode()}`);
   console.log(`asks:   ${openAsks().length} waiting on you (qb inbox)`);
@@ -303,6 +316,7 @@ function cmdStatus() {
 
 const HELP = `qb: Qubicle helper
 
+  qb open                       start the team if needed, show it in herdr
   qb status                     mode, open asks, seats
   qb mode [active|away]         show or set your mode
   qb inbox                      decisions waiting on you
@@ -315,13 +329,14 @@ const HELP = `qb: Qubicle helper
   qb policy <owner/repo>                         owned or shared
   qb approve <owner/repo> <pr>                   mark reviewed
   qb merge <owner/repo> <pr>                     merge if owned, approved, green
-  qb digest morning|evening|pulse                ask the orchestrator for a digest`;
+  qb digest morning|evening|pulse                ask the orchestrator for a digest
+  qb workspaces                                  local (non-GitHub) workspaces`;
 
 const [cmd, ...args] = process.argv.slice(2);
 const table = {
   status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
-  merge: cmdMerge, digest: cmdDigest,
+  merge: cmdMerge, digest: cmdDigest, open: cmdOpen, workspaces: cmdWorkspaces,
 };
 if (!cmd || cmd === "help" || cmd === "-h" || cmd === "--help") console.log(HELP);
 else if (!table[cmd]) die(`unknown command "${cmd}". Try qb help.`);

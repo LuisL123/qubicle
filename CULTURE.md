@@ -37,6 +37,17 @@ Run `qb policy <owner/repo>` before merging anything.
   Approve, then the orchestrator asks Luis.
 - Only merge through `qb merge`. It enforces the rules above.
 
+## Local workspaces
+
+Folders listed under `workspaces:` in `repos.yaml` (run `qb workspaces`).
+
+- Read the folder's rules file first (e.g. `request.md`). Its hard rules win.
+- No git flow: no PRs, no pushes, no contact with any upstream repo.
+- One seat edits a workspace at a time: whoever owns the queue item.
+- Never read `auth/`, `aws/`, keys, or tokens.
+- Anything that costs money or touches cloud resources (starting instances,
+  model runs, AWS changes): `qb ask` first, then wait.
+
 ## Reaching Luis
 
 - `qb ask "<question>"` when you need a decision. Then keep working on

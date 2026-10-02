@@ -55,7 +55,7 @@ for s in "${CLAUDE_SEATS[@]}"; do
     s.permissions ??= {};
     s.permissions.additionalDirectories = [...new Set([...(s.permissions.additionalDirectories || []), ...dirs])];
     fs.writeFileSync(f, JSON.stringify(s, null, 2) + "\n");
-  ' "$f" "$ROOT" "$ROOT/work" "$STATE"
+  ' "$f" "$ROOT" "$ROOT/work" "$STATE" $(node "$ROOT/bin/qb.mjs" workspaces | cut -f2)
 done
 
 # Codex's update prompt blocks unattended seats. Update with: npm i -g @openai/codex

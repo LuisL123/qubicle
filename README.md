@@ -18,12 +18,20 @@ gh auth login            # plus: claude and codex logged in, DeepSeek key handy
 ./scripts/setup.sh
 ```
 
-Add repos to `repos.yaml`, then watch:
+Add repos and local workspaces to `repos.yaml`.
+
+## Coming back
+
+Agents keep running when you close herdr or the terminal. After a reboot they
+start again on login.
 
 ```sh
-rig terminal open qubicle   # every seat as a live tile (herdr)
-rig tui                     # topology, queue, activity
+herdr                    # open herdr, then inside it:
+qb open                  # start the team if needed and show every seat as a tile
 ```
+
+Click a tile to talk to that seat. `rig tui` shows the queue and activity.
+To stop everything: `rig down qubicle --snapshot` (`qb open` brings it back).
 
 ## Daily use
 
@@ -41,4 +49,5 @@ Digests run at 9:00 and 19:00, plus a pulse every 3h while you're away.
 - All work happens in worktrees under `work/` and lands as PRs.
 - `owned` repos: reviewer merges after approval and green CI.
 - `shared` repos (Midas, anything with other contributors): you merge.
+- Local workspaces (non-git folders): edited in place, no PRs, costly runs need your OK.
 - Docs stay short. See `CULTURE.md`.

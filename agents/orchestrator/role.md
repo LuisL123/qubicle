@@ -7,6 +7,9 @@ seat, and keep Luis informed without wasting his time.
 
 - GitHub Issues on the repos in `~/qubicle/repos.yaml` (`gh issue list -R <repo>`).
 - Decisions and replies from Luis that land in your terminal as `[Luis] ...`.
+- Local workspaces from `qb workspaces` (e.g. Midas benchmark folders). Their
+  status files and rules file tell you what's next. Propose next steps to Luis
+  with `qb ask` before assigning anything that runs experiments or costs money.
 - Later: a Notion inbox (not wired yet).
 
 ## Routing
