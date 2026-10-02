@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+import { parseArgs, checksGreen } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fs.realpathSync(fileURLToPath(import.meta.url))), "..");
 const HOME = process.env.QUBICLE_HOME || path.join(os.homedir(), ".qubicle");
@@ -36,20 +37,6 @@ function readJson(file, fallback) {
 function writeJson(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n");
-}
-
-// Parse "--flag value" and "--flag" options; everything else is positional.
-function parseArgs(argv) {
-  const opts = {}, pos = [];
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a.startsWith("--")) {
-      const key = a.slice(2);
-      const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith("--")) { opts[key] = next; i++; } else opts[key] = true;
-    } else pos.push(a);
-  }
-  return { opts, pos };
 }
 
 // ---------- mode ----------
@@ -229,17 +216,6 @@ function cmdApprove([repo, pr, ...rest]) {
   // Shared repos: no labels or comments on other people's repos. Approval stays local.
   feed({ level: "info", text: `Approved ${repo}#${pr} (${pol.policy})` });
   console.log(pol.policy === "owned" ? `approved. next: qb merge ${repo} ${pr}` : "approved locally. shared repo: Luis merges.");
-}
-
-function checksGreen(rollup) {
-  const bad = [];
-  for (const c of rollup || []) {
-    if (c.__typename === "CheckRun") {
-      if (c.status !== "COMPLETED") bad.push(`${c.name}: ${c.status.toLowerCase()}`);
-      else if (!["SUCCESS", "NEUTRAL", "SKIPPED"].includes(c.conclusion)) bad.push(`${c.name}: ${c.conclusion.toLowerCase()}`);
-    } else if (c.state && c.state !== "SUCCESS") bad.push(`${c.context}: ${c.state.toLowerCase()}`);
-  }
-  return bad;
 }
 
 function cmdMerge([repo, pr]) {
