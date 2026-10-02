@@ -274,6 +274,22 @@ function cmdDigest([kind]) {
 
 // ---------- status ----------
 
+// Relaunch one seat, e.g. after its harness crashed. Seat = pod.member (build.codex).
+function cmdRelaunch([seatRef]) {
+  if (!seatRef) die("usage: qb relaunch <pod.member>   e.g. qb relaunch build.codex");
+  const out = run("rig", ["ps", "--fields", "rigId,name", "--json"]);
+  let id = null;
+  const walk = (v) => {
+    if (id || !v || typeof v !== "object") return;
+    if ((v.name === RIG || v.rigName === RIG) && v.rigId) { id = v.rigId; return; }
+    Object.values(v).forEach(walk);
+  };
+  walk(JSON.parse(out));
+  if (!id) die(`rig ${RIG} not found in rig ps. Is it up? (qb open)`);
+  const r = spawnSync("rig", ["launch", id, seatRef.replace("-", ".")], { stdio: "inherit" });
+  process.exit(r.status ?? 1);
+}
+
 function cmdOpen() {
   // Make sure the daemon and rig are up (no-op if they already are), then show the tiles.
   spawnSync("bash", [path.join(ROOT, "scripts", "boot.sh")], { stdio: "inherit" });
@@ -299,6 +315,7 @@ function cmdStatus() {
 const HELP = `qb: Qubicle helper
 
   qb open                       start the team if needed, show it in herdr
+  qb relaunch <pod.member>      restart one seat, e.g. qb relaunch build.codex
   qb status                     mode, open asks, seats
   qb mode [active|away]         show or set your mode
   qb inbox                      decisions waiting on you
@@ -318,7 +335,7 @@ const [cmd, ...args] = process.argv.slice(2);
 const table = {
   status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
-  merge: cmdMerge, digest: cmdDigest, open: cmdOpen, workspaces: cmdWorkspaces,
+  merge: cmdMerge, digest: cmdDigest, open: cmdOpen, relaunch: cmdRelaunch, workspaces: cmdWorkspaces,
 };
 if (!cmd || cmd === "help" || cmd === "-h" || cmd === "--help") console.log(HELP);
 else if (!table[cmd]) die(`unknown command "${cmd}". Try qb help.`);
