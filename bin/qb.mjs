@@ -102,7 +102,7 @@ function cmdAsk(argv) {
   const from = opts.from || process.env.OPENRIG_SESSION_NAME || ORCH;
   const options = typeof opts.options === "string" ? opts.options.split("|").map((s) => s.trim()) : [];
   writeJson(p("inbox", `${id}.json`), { id, from, question, options, status: "open", created: now() });
-  feed({ level: "decision", id, text: question, options });
+  feed({ level: "decision", id, text: question, options, from });
   if (getMode() === "active") macNotify("Qubicle needs you", question);
   console.log(id);
 }

@@ -73,6 +73,15 @@ else
   unset DS_KEY
 fi
 
+say "Discord bot token (Keychain, for away mode)"
+if security find-generic-password -s qubicle-discord -w >/dev/null 2>&1; then
+  echo "    already in Keychain"
+else
+  read -rsp "    Paste your Discord bot token (Enter to skip): " DC_TOKEN; echo
+  [[ -n "$DC_TOKEN" ]] && security add-generic-password -a "$USER" -s qubicle-discord -w "$DC_TOKEN" -U
+  unset DC_TOKEN
+fi
+
 say "Validating rig spec"
 rig daemon start --no-kernel >/dev/null 2>&1 || true   # no kernel: saves 3 extra agents
 rig spec validate "$ROOT/rig.yaml"
@@ -103,6 +112,9 @@ plist dev.qubicle.boot    "<key>RunAtLoad</key><true/>"                         
 plist dev.qubicle.morning "$(at 9 0)"                                           "$NODE" "$ROOT/bin/qb.mjs" digest morning
 plist dev.qubicle.evening "$(at 19 0)"                                          "$NODE" "$ROOT/bin/qb.mjs" digest evening
 plist dev.qubicle.pulse   "<key>StartInterval</key><integer>10800</integer>"    "$NODE" "$ROOT/bin/qb.mjs" digest pulse
+if security find-generic-password -s qubicle-discord -w >/dev/null 2>&1; then
+  plist dev.qubicle.discord "<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>" "$NODE" "$ROOT/bridge/discord.mjs"
+fi
 
 say "Checking sleep settings"
 if pmset -g custom | awk '/AC Power/{ac=1} ac && $1=="sleep"{print $2; exit}' | grep -qv '^0$'; then

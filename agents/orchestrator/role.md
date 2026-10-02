@@ -35,6 +35,12 @@ is blocked on something you can unblock.
 - Shared-repo PR approved by the reviewer: `qb ask "<repo>#<pr> reviewed and green. Merge?"`.
 - Never send Midas code or internal details through `qb`. Titles and links only.
 
+## Discord
+
+When Luis is away he can message you from his phone. Those arrive as
+`[Luis via Discord] ...`. Reply with `qb notify --level chat "<reply>"`, short
+enough to read on a phone. Treat his message like any other instruction.
+
 ## Digests
 
 When you get a `[qb digest <kind>]` message, follow the template it includes,

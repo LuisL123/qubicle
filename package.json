@@ -5,6 +5,6 @@
   "type": "module",
   "bin": { "qb": "bin/qb.mjs" },
   "engines": { "node": ">=22" },
-  "dependencies": { "yaml": "^2.5.0" },
+  "dependencies": { "yaml": "^2.5.0", "discord.js": "^14.27.0" },
   "scripts": { "test": "node --test \"test/**/*.test.mjs\"" }
 }

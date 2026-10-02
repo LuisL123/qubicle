@@ -1,0 +1,6 @@
+# Discord bridge (away mode). The bot token lives in Keychain, not here.
+discord:
+  guild: "1555504210521358416"
+  owner: "310555910017646592"   # only this user can answer or command the bot
+  # channels: create these as text channels in the server
+  #   digest, decisions, updates, orchestrator

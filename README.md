@@ -39,10 +39,22 @@ To stop everything: `rig down qubicle --snapshot` (`qb open` brings it back).
 qb status                # mode, open questions, seats
 qb inbox                 # decisions waiting on you
 qb answer <id> "yes"     # reply; the asking seat gets it
-qb mode away             # digests and questions go to your phone (Discord, coming next)
+qb mode away             # questions and digests ping your phone on Discord
 ```
 
 Digests run at 9:00 and 19:00, plus a pulse every 3h while you're away.
+
+## Discord (away mode)
+
+Bot config is in `config.yaml`; the token is in Keychain (`scripts/setup.sh` asks).
+Channels: `#digest`, `#decisions`, `#updates`, `#orchestrator`.
+
+- Tap a button or reply in a decision's thread to answer it.
+- Message `#orchestrator` to talk to the orchestrator.
+- `/away`, `/back`, `/status`, `/inbox`, `/digest`.
+
+At your desk everything still posts, silently. Away, you get pinged.
+Logs: `~/.qubicle/logs/dev.qubicle.discord.log`.
 
 ## Rules
 
