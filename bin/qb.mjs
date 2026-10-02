@@ -275,8 +275,17 @@ function cmdDigest([kind]) {
 // ---------- status ----------
 
 // Relaunch one seat, e.g. after its harness crashed. Seat = pod.member (build.codex).
-function cmdRelaunch([seatRef]) {
-  if (!seatRef) die("usage: qb relaunch <pod.member>   e.g. qb relaunch build.codex");
+// --force: the harness crashed but its tmux session (a bare shell) is still up, so
+// OpenRig thinks the seat is running. Kill that session first, then relaunch.
+function cmdRelaunch(argv) {
+  const { opts, pos: [seatRef] } = parseArgs(argv);
+  if (!seatRef) die("usage: qb relaunch <pod.member> [--force]   e.g. qb relaunch build.codex --force");
+  if (opts.force) {
+    const session = `${seatRef.replace(".", "-")}@${RIG}`;
+    const k = spawnSync("tmux", ["kill-session", "-t", `=${session}`], { encoding: "utf8" });
+    log(k.status === 0 ? `qb: killed tmux session ${session}` : `qb: no tmux session ${session} (continuing)`);
+    spawnSync("sleep", ["5"]); // let the daemon notice the session is gone
+  }
   const out = run("rig", ["ps", "--fields", "rigId,name", "--json"]);
   let id = null;
   const walk = (v) => {
@@ -287,6 +296,8 @@ function cmdRelaunch([seatRef]) {
   walk(JSON.parse(out));
   if (!id) die(`rig ${RIG} not found in rig ps. Is it up? (qb open)`);
   const r = spawnSync("rig", ["launch", id, seatRef.replace("-", ".")], { stdio: "inherit" });
+  if (r.status === 0 || opts.force) process.exit(r.status ?? 1);
+  log("qb: if it says 'already running' but the tile shows a bare shell, use --force");
   process.exit(r.status ?? 1);
 }
 
@@ -315,7 +326,7 @@ function cmdStatus() {
 const HELP = `qb: Qubicle helper
 
   qb open                       start the team if needed, show it in herdr
-  qb relaunch <pod.member>      restart one seat, e.g. qb relaunch build.codex
+  qb relaunch <pod.member> [--force]   restart one seat (--force if its tile is a bare shell)
   qb status                     mode, open asks, seats
   qb mode [active|away]         show or set your mode
   qb inbox                      decisions waiting on you
