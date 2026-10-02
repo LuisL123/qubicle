@@ -28,7 +28,11 @@ gh auth status >/dev/null 2>&1 || { echo "Run 'gh auth login' first."; exit 1; }
 
 say "Installing OpenRig"
 need rig || npm install -g @openrig/cli
-rig setup
+# rig setup reinstalls cmux on every run, so only run it once. Qubicle uses herdr.
+if [[ ! -f "$ROOT/vendor/.rig-setup-done" ]]; then
+  rig setup
+  mkdir -p "$ROOT/vendor" && touch "$ROOT/vendor/.rig-setup-done"
+fi
 
 say "Installing qb"
 (cd "$ROOT" && npm install --silent && npm link --silent)
