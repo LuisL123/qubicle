@@ -55,8 +55,14 @@ for s in "${CLAUDE_SEATS[@]}"; do
     s.permissions ??= {};
     s.permissions.additionalDirectories = [...new Set([...(s.permissions.additionalDirectories || []), ...dirs])];
     fs.writeFileSync(f, JSON.stringify(s, null, 2) + "\n");
-  ' "$f" "$ROOT/work" "$STATE"
+  ' "$f" "$ROOT" "$ROOT/work" "$STATE"
 done
+
+# Codex's update prompt blocks unattended seats. Update with: npm i -g @openai/codex
+CODEX_CFG="$HOME/.codex/config.toml"
+mkdir -p "$(dirname "$CODEX_CFG")"; touch "$CODEX_CFG"
+grep -q '^check_for_update_on_startup' "$CODEX_CFG" \
+  || { printf 'check_for_update_on_startup = false\n' | cat - "$CODEX_CFG" > "$CODEX_CFG.tmp" && mv "$CODEX_CFG.tmp" "$CODEX_CFG"; }
 
 say "DeepSeek key (stored in Keychain, never on disk)"
 if security find-generic-password -s qubicle-deepseek -w >/dev/null 2>&1; then
