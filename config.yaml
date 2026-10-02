@@ -8,8 +8,8 @@ discord:
 # Explainer: a second model that posts a plain-words breakdown and a suggestion
 # in every decision thread. Reply "? <question>" in the thread to ask it more.
 explainer:
-  runtime: codex   # codex (ChatGPT plan), claude (Claude plan), or off
-  model: ""        # empty = that runtime's default
+  runtime: claude  # codex (ChatGPT plan), claude (Claude plan), or off
+  model: sonnet    # empty = that runtime's default
 
 # Nightly self-update (scripts/update.sh, 4:30). Paths listed under keep are
 # backed up before updating and restored if an update deletes them.
