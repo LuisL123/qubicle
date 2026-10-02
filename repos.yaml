@@ -4,6 +4,8 @@
 # qb double-checks: an "owned" repo with other contributors is treated as shared.
 
 repos:
+  - repo: LuisL123/qubicle
+    policy: owned
   # - repo: luis/qubicle
   #   policy: owned
   # - repo: midas-org/some-repo
