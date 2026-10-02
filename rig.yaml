@@ -14,7 +14,7 @@ pods:
         agent_ref: "local:agents/orchestrator"
         runtime: claude-code
         profile: default
-        model: sonnet   # Claude Pro: Opus burns limits fast
+        model: opus   # Luis asked for Opus on the orchestrator; builders stay on Sonnet
         cwd: seats/orchestrator
 
   - id: build
