@@ -25,3 +25,8 @@ export function checksGreen(rollup) {
   }
   return bad;
 }
+
+// Files a PR touches that match a protected pattern. "dir/" matches anything under dir.
+export function protectedHits(files, patterns) {
+  return (files || []).filter((f) => (patterns || []).some((p) => (p.endsWith("/") ? f.startsWith(p) : f === p)));
+}

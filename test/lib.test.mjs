@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs, checksGreen } from "../bin/lib.mjs";
+import { parseArgs, checksGreen, protectedHits } from "../bin/lib.mjs";
 
 // ---------- parseArgs ----------
 
@@ -141,4 +141,23 @@ test("checksGreen: a completed check run with no conclusion throws", () => {
   // GitHub always sends a conclusion for a completed run, so a rollup that hits
   // this is malformed; failing loudly beats reporting it green.
   assert.throws(() => checksGreen([checkRun({ conclusion: null })]), TypeError);
+});
+
+// ---------- protectedHits ----------
+
+test("protectedHits: exact files and directory prefixes", () => {
+  const pats = ["rig.yaml", "CULTURE.md", "agents/"];
+  assert.deepEqual(
+    protectedHits(["rig.yaml", "agents/orchestrator/role.md", "README.md", "test/x.mjs"], pats),
+    ["rig.yaml", "agents/orchestrator/role.md"],
+  );
+});
+
+test("protectedHits: no false prefix match without the slash", () => {
+  assert.deepEqual(protectedHits(["rig.yaml.bak", "agentsx/a"], ["rig.yaml", "agents/"]), []);
+});
+
+test("protectedHits: empty inputs", () => {
+  assert.deepEqual(protectedHits([], ["rig.yaml"]), []);
+  assert.deepEqual(protectedHits(["rig.yaml"], undefined), []);
 });

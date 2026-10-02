@@ -1,11 +1,14 @@
 # Repos the team works on. Anything not listed is treated as shared.
 #   owned:  your solo repos. Reviewer can merge after approval + green CI.
 #   shared: Midas, forks, anything with other contributors. You merge.
+#   protected: paths in an owned repo that still need you to merge.
 # qb double-checks: an "owned" repo with other contributors is treated as shared.
 
 repos:
   - repo: LuisL123/qubicle
     policy: owned
+    # Team setup: PRs touching these always need Luis, even on an owned repo.
+    protected: [rig.yaml, CULTURE.md, agents/, repos.yaml, config.yaml, bin/qb.mjs, bin/lib.mjs]
   # - repo: luis/qubicle
   #   policy: owned
   # - repo: midas-org/some-repo

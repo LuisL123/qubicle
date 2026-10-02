@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { parseArgs, checksGreen } from "./lib.mjs";
+import { parseArgs, checksGreen, protectedHits } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fs.realpathSync(fileURLToPath(import.meta.url))), "..");
 const HOME = process.env.QUBICLE_HOME || path.join(os.homedir(), ".qubicle");
@@ -236,6 +236,12 @@ function cmdMerge([repo, pr]) {
   if (!info.labels.some((l) => l.name === APPROVED_LABEL)) problems.push(`missing ${APPROVED_LABEL} (run qb approve first)`);
   if (info.mergeable !== "MERGEABLE") problems.push(`not mergeable (${info.mergeable.toLowerCase()})`);
   problems.push(...checksGreen(info.statusCheckRollup));
+  const patterns = loadRepos().find((r) => r.repo?.toLowerCase() === repo.toLowerCase())?.protected || [];
+  if (patterns.length) {
+    const files = JSON.parse(gh(["pr", "view", pr, "-R", repo, "--json", "files"])).files.map((f) => f.path);
+    const hits = protectedHits(files, patterns);
+    if (hits.length) problems.push(`touches protected files (${hits.join(", ")}): Luis merges this one`);
+  }
   if (problems.length) die(`refusing to merge ${repo}#${pr}:\n  - ${problems.join("\n  - ")}`);
 
   gh(["pr", "merge", pr, "-R", repo, "--squash", "--delete-branch"]);

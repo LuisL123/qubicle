@@ -35,6 +35,9 @@ Run `qb policy <owner/repo>` before merging anything.
   green, the reviewer merges with `qb merge`.
 - `shared` (Midas org, forks, anything with other contributors): never merge.
   Approve, then the orchestrator asks Luis.
+- Protected paths (`protected:` in `repos.yaml`, e.g. Qubicle's own `rig.yaml`,
+  `CULTURE.md`, `agents/`) always need Luis, even on owned repos. `qb merge`
+  refuses them; approve, then the orchestrator asks Luis.
 - Only merge through `qb merge`. It enforces the rules above.
 
 ## Local workspaces
