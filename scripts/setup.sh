@@ -104,8 +104,13 @@ plist() { # label, interval-xml, program args...
   <key>StandardErrorPath</key><string>$STATE/logs/$label.log</string>
 </dict></plist>
 EOF
-  launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$AGENTS_DIR/$label.plist"
+  local domain="gui/$(id -u)"
+  launchctl bootout "$domain/$label" 2>/dev/null || true
+  # bootout finishes asynchronously; bootstrapping too early fails with error 5.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do launchctl print "$domain/$label" >/dev/null 2>&1 || break; sleep 0.5; done
+  launchctl bootstrap "$domain" "$AGENTS_DIR/$label.plist" 2>/dev/null \
+    || { sleep 2; launchctl bootstrap "$domain" "$AGENTS_DIR/$label.plist"; } \
+    || warn "could not load $label (try: launchctl bootstrap $domain $AGENTS_DIR/$label.plist)"
 }
 at() { echo "<key>StartCalendarInterval</key><dict><key>Hour</key><integer>$1</integer><key>Minute</key><integer>$2</integer></dict>"; }
 plist dev.qubicle.boot    "<key>RunAtLoad</key><true/>"                         /bin/bash "$ROOT/scripts/boot.sh"
