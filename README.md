@@ -18,7 +18,12 @@ gh auth login            # plus: claude and codex logged in, DeepSeek key handy
 ./scripts/setup.sh
 ```
 
-Add repos to `repos.yaml`, then watch with `rig tui`.
+Add repos to `repos.yaml`, then watch:
+
+```sh
+rig terminal open qubicle   # every seat as a live tile (herdr)
+rig tui                     # topology, queue, activity
+```
 
 ## Daily use
 

@@ -16,7 +16,7 @@ need() { command -v "$1" >/dev/null 2>&1; }
 
 say "Checking tools"
 need brew || { echo "Install Homebrew first: https://brew.sh"; exit 1; }
-for pkg in tmux gh node@22; do
+for pkg in tmux gh node@22 herdr; do
   bin="${pkg%@*}"
   need "$bin" || brew install "$pkg"
 done
@@ -64,6 +64,7 @@ else
 fi
 
 say "Validating rig spec"
+rig daemon start --no-kernel >/dev/null 2>&1 || true   # no kernel: saves 3 extra agents
 rig spec validate "$ROOT/rig.yaml"
 
 say "Installing launch agents (boot + digests at 9:00 and 19:00, pulse every 3h when away)"
@@ -100,4 +101,4 @@ if pmset -g custom | awk '/AC Power/{ac=1} ac && $1=="sleep"{print $2; exit}' | 
 fi
 
 say "Done"
-echo "    Next: add repos to repos.yaml, then 'rig tui' to watch the team."
+echo "    Next: add repos to repos.yaml. Watch with 'rig terminal open qubicle' (live tiles) or 'rig tui'."
