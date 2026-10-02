@@ -12,7 +12,7 @@ imports:
 profiles:
   default:
     uses:
-      skills: [development-team, test-driven-development, verification-before-completion]
+      skills: [development-team, verification-before-completion, tdd, codebase-design]
       guidance: [role]
       subagents: []
       plugins: [shared:openrig-core]

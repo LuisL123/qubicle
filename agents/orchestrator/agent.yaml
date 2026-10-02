@@ -12,7 +12,7 @@ imports:
 profiles:
   default:
     uses:
-      skills: [orchestration-team, backlog-capture, verification-before-completion]
+      skills: [orchestration-team, backlog-capture, verification-before-completion, grill-me, grilling, grill-with-docs, to-spec, to-tickets, domain-modeling, codebase-design, improve-codebase-architecture]
       guidance: [role]
       subagents: []
       plugins: [shared:openrig-core]

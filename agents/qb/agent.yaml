@@ -3,6 +3,25 @@ version: "1.0"
 description: Qubicle shared runtime settings (permissions, DeepSeek routing)
 
 resources:
+  skills:  # mattpocock/skills, vendored in agents/qb/skills/mattpocock (MIT)
+    - id: grill-me
+      path: skills/mattpocock/grill-me
+    - id: grilling
+      path: skills/mattpocock/grilling
+    - id: grill-with-docs
+      path: skills/mattpocock/grill-with-docs
+    - id: to-spec
+      path: skills/mattpocock/to-spec
+    - id: to-tickets
+      path: skills/mattpocock/to-tickets
+    - id: domain-modeling
+      path: skills/mattpocock/domain-modeling
+    - id: tdd
+      path: skills/mattpocock/tdd
+    - id: codebase-design
+      path: skills/mattpocock/codebase-design
+    - id: improve-codebase-architecture
+      path: skills/mattpocock/improve-codebase-architecture
   runtime_resources:
     - id: claude-orchestrator
       path: claude-orchestrator.fragment.json

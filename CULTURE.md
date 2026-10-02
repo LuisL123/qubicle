@@ -57,6 +57,27 @@ Folders listed under `workspaces:` in `repos.yaml` (run `qb workspaces`).
 - Midas items: titles and links only in anything sent to Luis's phone. No
   code, no internal details.
 
+## Agent skills
+
+Planning skills from mattpocock/skills (`/grill-me`, `/to-spec`, `/to-tickets`,
+`/domain-modeling`, `/tdd`, `/improve-codebase-architecture`) use this setup:
+
+### Issue tracker
+
+- GitHub repos: GitHub Issues on that repo, via `gh`. On `shared` repos, ask
+  Luis before publishing specs or tickets there.
+- Local workspaces: local markdown under `~/qubicle/work/specs/<workspace>/`.
+  Never inside the workspace itself, never upstream.
+
+### Triage labels
+
+One label: `ready-for-agent`, meaning the orchestrator can assign it as is.
+
+### Domain docs
+
+Single-context. `GLOSSARY.md` at the repo root, decisions in `docs/adr/`.
+Keep both short.
+
 ## Hygiene
 
 - Don't silently wait. If blocked, say on what and move on.
