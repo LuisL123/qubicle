@@ -4,7 +4,7 @@
 //
 //   node bridge/discord.mjs          run the bridge
 //   node bridge/discord.mjs --dry    print what would be posted from new feed rows (no Discord)
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFile, execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,7 +19,9 @@ const QB = path.join(ROOT, "bin", "qb.mjs");
 const ORCH = "lead-orchestrator@qubicle";
 const DRY = process.argv.includes("--dry");
 
-const cfg = (YAML.parse(fs.readFileSync(path.join(ROOT, "config.yaml"), "utf8")) || {}).discord || {};
+const fullCfg = YAML.parse(fs.readFileSync(path.join(ROOT, "config.yaml"), "utf8")) || {};
+const cfg = fullCfg.discord || {};
+const EXPLAINER = { runtime: "codex", model: "", ...(fullCfg.explainer || {}) };
 const CHANNELS = { digest: "digest", decisions: "decisions", updates: "updates", chat: "orchestrator", ...(cfg.channels || {}) };
 const SILENT = 1 << 12; // Discord SUPPRESS_NOTIFICATIONS flag
 
@@ -79,6 +81,73 @@ if (DRY) {
   process.exit(0);
 }
 
+// ---------- explainer ----------
+// A second model that reads the context and explains a decision in plain words.
+
+function feedTail(n = 15) {
+  try {
+    return fs.readFileSync(FEED, "utf8").trim().split("\n").slice(-n)
+      .map((l) => { const r = JSON.parse(l); return `- ${seat(r.from)} [${r.level}]: ${String(r.text).slice(0, 200)}`; }).join("\n");
+  } catch { return "(none)"; }
+}
+
+function explainPrompt(ask, followup) {
+  const cap = spawnSync("rig", ["capture", ask.from, "--lines", "80"], { encoding: "utf8" });
+  const tail = (cap.stdout || "").trim().slice(-6000) || "(not available)";
+  return `You are the explainer for Qubicle, Luis's team of coding agents. A seat asked Luis to decide something.
+Luis is busy, often on his phone, and may not know the context. Help him decide fast.
+
+You may read these for background (read only, change nothing): ~/qubicle/CULTURE.md, ~/qubicle/repos.yaml,
+and files under ~/qubicle/work/specs/. If this is Midas work, stay high level: no code, file contents, or result numbers.
+
+Question from ${seat(ask.from)}:
+${ask.question}
+Options: ${ask.options?.length ? ask.options.join(" | ") : "(free text)"}
+
+What ${seat(ask.from)} was doing right before asking (terminal tail):
+${tail}
+
+Recent team activity:
+${feedTail()}
+${followup ? `
+Luis's follow-up question: ${followup}
+Answer only that, in at most 100 words, plain words, no em dashes.` : `
+Reply in at most 120 words. Plain words; gloss any jargon in a few words. No em dashes. Use exactly:
+**What's being asked:** ...
+**Why it matters:** ...
+**Options:** one short line each, with its tradeoff
+**My pick:** the option, and why in one line`}`;
+}
+
+function runModel(prompt) {
+  return new Promise((resolve) => {
+    const out = path.join(os.tmpdir(), `qb-explain-${process.pid}-${Date.now()}.txt`);
+    const m = EXPLAINER.model ? ["-m", EXPLAINER.model] : [];
+    const [cmd, args] = EXPLAINER.runtime === "claude"
+      ? ["claude", ["-p", prompt, ...(EXPLAINER.model ? ["--model", EXPLAINER.model] : []), "--permission-mode", "plan"]]
+      : ["codex", ["exec", "-s", "read-only", "--skip-git-repo-check", "--ephemeral", "-C", ROOT, "-o", out, ...m, prompt]];
+    execFile(cmd, args, { cwd: ROOT, timeout: 180_000, maxBuffer: 4 << 20 }, (err, stdout) => {
+      let text = "";
+      try { text = fs.readFileSync(out, "utf8").trim(); fs.unlinkSync(out); } catch { text = (stdout || "").trim(); }
+      if (err && !text) log("explainer failed:", err.message.split("\n")[0]);
+      resolve(text);
+    });
+  });
+}
+
+let explainQueue = Promise.resolve();
+function explain(askId, followup) {
+  explainQueue = explainQueue.then(async () => {
+    const ask = readJson(path.join(HOME, "inbox", `${askId}.json`), null);
+    const threadId = Object.keys(state.threads).find((t) => state.threads[t] === askId);
+    if (!ask || !threadId) return;
+    const text = await runModel(explainPrompt(ask, followup));
+    if (!text) return;
+    const thread = await client.channels.fetch(threadId).catch(() => null);
+    await thread?.send({ content: clip(`📖 ${text}`), flags: SILENT });
+  }).catch((e) => log("explain error", e.message));
+}
+
 // ---------- discord ----------
 
 const { Client, Events, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags, SlashCommandBuilder } = await import("discord.js");
@@ -109,6 +178,7 @@ async function post(m) {
     state.asks[m.ask.id] = { channelId: ch.id, messageId: msg.id, options: m.ask.options };
     if (thread) state.threads[thread.id] = m.ask.id;
     saveState();
+    if (thread && EXPLAINER.runtime !== "off") explain(m.ask.id);
   }
 }
 const chunk = (a, n) => a.reduce((acc, x, i) => (i % n ? acc[acc.length - 1].push(x) : acc.push([x]), acc), []);
@@ -167,6 +237,11 @@ client.on(Events.InteractionCreate, async (ix) => {
 client.on(Events.MessageCreate, async (msg) => {
   if (msg.author.bot || !isOwner(msg.author)) return;
   const askId = state.threads[msg.channelId];
+  if (askId && msg.content.trim().startsWith("?")) {
+    await msg.react("🤔").catch(() => {});
+    explain(askId, msg.content.trim().slice(1).trim());
+    return;
+  }
   if (askId) {
     const out = answer(askId, msg.content);
     await msg.react(out.startsWith("sent") ? "✅" : "⚠️").catch(() => {});

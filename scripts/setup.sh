@@ -58,7 +58,7 @@ for s in "${CLAUDE_SEATS[@]}"; do
   ' "$f" "$ROOT" "$ROOT/work" "$STATE" $(node "$ROOT/bin/qb.mjs" workspaces | cut -f2)
 done
 
-# Codex's update prompt blocks unattended seats. Update with: npm i -g @openai/codex
+# Codex's update prompt blocks unattended seats; scripts/update.sh updates it nightly instead.
 CODEX_CFG="$HOME/.codex/config.toml"
 mkdir -p "$(dirname "$CODEX_CFG")"; touch "$CODEX_CFG"
 grep -q '^check_for_update_on_startup' "$CODEX_CFG" \
@@ -86,7 +86,7 @@ say "Validating rig spec"
 rig daemon start --no-kernel >/dev/null 2>&1 || true   # no kernel: saves 3 extra agents
 rig spec validate "$ROOT/rig.yaml"
 
-say "Installing launch agents (boot + digests at 9:00 and 19:00, pulse every 3h when away)"
+say "Installing launch agents (boot, digests 9:00/19:00, pulse every 3h when away, updates 4:30)"
 mkdir -p "$AGENTS_DIR"
 NODE="$(command -v node)"
 plist() { # label, interval-xml, program args...
@@ -112,6 +112,7 @@ plist dev.qubicle.boot    "<key>RunAtLoad</key><true/>"                         
 plist dev.qubicle.morning "$(at 9 0)"                                           "$NODE" "$ROOT/bin/qb.mjs" digest morning
 plist dev.qubicle.evening "$(at 19 0)"                                          "$NODE" "$ROOT/bin/qb.mjs" digest evening
 plist dev.qubicle.pulse   "<key>StartInterval</key><integer>10800</integer>"    "$NODE" "$ROOT/bin/qb.mjs" digest pulse
+plist dev.qubicle.update  "$(at 4 30)"                                          /bin/bash "$ROOT/scripts/update.sh"
 if security find-generic-password -s qubicle-discord -w >/dev/null 2>&1; then
   plist dev.qubicle.discord "<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>" "$NODE" "$ROOT/bridge/discord.mjs"
 fi

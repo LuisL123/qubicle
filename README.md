@@ -50,11 +50,20 @@ Bot config is in `config.yaml`; the token is in Keychain (`scripts/setup.sh` ask
 Channels: `#digest`, `#decisions`, `#updates`, `#orchestrator`.
 
 - Tap a button or reply in a decision's thread to answer it.
+- Each decision thread gets a plain-words breakdown and a suggested pick from a
+  second model (the explainer). Reply `? <question>` in the thread to ask it more.
 - Message `#orchestrator` to talk to the orchestrator.
 - `/away`, `/back`, `/status`, `/inbox`, `/digest`.
 
 At your desk everything still posts, silently. Away, you get pinged.
 Logs: `~/.qubicle/logs/dev.qubicle.discord.log`.
+
+## Updates
+
+`scripts/update.sh` runs nightly at 4:30: Codex, Claude Code, herdr and gh update
+every night, OpenRig on Sundays (or `--openrig`). tmux stays put on purpose.
+Running seats switch to new versions on their next restart. Paths under
+`update.keep` in `config.yaml` are protected from removal.
 
 ## Rules
 
