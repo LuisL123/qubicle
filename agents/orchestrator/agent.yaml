@@ -1,0 +1,33 @@
+name: qubicle-orchestrator
+version: "1.0"
+description: Routes work from GitHub Issues to seats, writes digests, talks to Luis
+
+defaults:
+  runtime: claude-code
+
+imports:
+  - ref: local:../../vendor/openrig-shared
+  - ref: local:../qb
+
+profiles:
+  default:
+    uses:
+      skills: [orchestration-team, backlog-capture, verification-before-completion]
+      guidance: [role]
+      subagents: []
+      plugins: [shared:openrig-core]
+      runtime_resources: [shared:claude-default-settings, shared:claude-default-mcp, shared:codex-default-config, shared:claude-activity-hooks, qb:claude-orchestrator]
+
+resources:
+  guidance:
+    - id: role
+      path: role.md
+      target: CLAUDE.md
+      merge: managed_block
+
+startup:
+  files:
+    - path: role.md
+      delivery_hint: send_text
+      required: true
+  actions: []

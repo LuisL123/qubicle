@@ -1,0 +1,33 @@
+name: qubicle-grunt
+version: "1.0"
+description: DeepSeek-backed builder for tests, refactors, and boilerplate
+
+defaults:
+  runtime: claude-code
+
+imports:
+  - ref: local:../../vendor/openrig-shared
+  - ref: local:../qb
+
+profiles:
+  default:
+    uses:
+      skills: [development-team, test-driven-development, verification-before-completion]
+      guidance: [role]
+      subagents: []
+      plugins: [shared:openrig-core]
+      runtime_resources: [shared:claude-default-settings, shared:claude-default-mcp, shared:codex-default-config, shared:claude-activity-hooks, qb:claude-builder, qb:deepseek]
+
+resources:
+  guidance:
+    - id: role
+      path: role.md
+      target: CLAUDE.md
+      merge: managed_block
+
+startup:
+  files:
+    - path: role.md
+      delivery_hint: send_text
+      required: true
+  actions: []

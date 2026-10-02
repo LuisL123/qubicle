@@ -1,0 +1,33 @@
+name: qubicle-builder
+version: "1.0"
+description: Builds one issue at a time in a worktree and opens a PR
+
+defaults:
+  runtime: claude-code
+
+imports:
+  - ref: local:../../vendor/openrig-shared
+  - ref: local:../qb
+
+profiles:
+  default:
+    uses:
+      skills: [development-team, test-driven-development, systematic-debugging, verification-before-completion]
+      guidance: [role]
+      subagents: []
+      plugins: [shared:openrig-core]
+      runtime_resources: [shared:claude-default-settings, shared:claude-default-mcp, shared:codex-default-config, shared:claude-activity-hooks, qb:claude-builder]
+
+resources:
+  guidance:
+    - id: role
+      path: role.md
+      target: CLAUDE.md
+      merge: managed_block
+
+startup:
+  files:
+    - path: role.md
+      delivery_hint: send_text
+      required: true
+  actions: []

@@ -1,0 +1,75 @@
+version: "0.2"
+name: qubicle
+summary: >
+  Luis's personal team: one orchestrator, three builders, one reviewer.
+  Work comes from GitHub Issues, lands as PRs, and reaches Luis via qb.
+
+culture_file: CULTURE.md
+
+pods:
+  - id: lead
+    label: Lead
+    members:
+      - id: orchestrator
+        agent_ref: "local:agents/orchestrator"
+        runtime: claude-code
+        profile: default
+        cwd: seats/orchestrator
+
+  - id: build
+    label: Build
+    members:
+      - id: codex
+        agent_ref: "local:agents/builder"
+        runtime: codex
+        profile: default
+        cwd: seats/builder-codex
+        permission_policy: builtin:yolo
+      - id: claude
+        agent_ref: "local:agents/builder"
+        runtime: claude-code
+        profile: default
+        cwd: seats/builder-claude
+        permission_policy: builtin:yolo
+      - id: grunt
+        agent_ref: "local:agents/grunt"
+        runtime: claude-code
+        profile: default
+        cwd: seats/grunt
+        permission_policy: builtin:yolo
+
+  - id: review
+    label: Review
+    members:
+      - id: codex
+        agent_ref: "local:agents/reviewer"
+        runtime: codex
+        profile: default
+        cwd: seats/reviewer
+        permission_policy: builtin:yolo
+
+edges:
+  - kind: delegates_to
+    from: lead.orchestrator
+    to: build.codex
+  - kind: delegates_to
+    from: lead.orchestrator
+    to: build.claude
+  - kind: delegates_to
+    from: lead.orchestrator
+    to: build.grunt
+  - kind: delegates_to
+    from: lead.orchestrator
+    to: review.codex
+  - kind: can_observe
+    from: review.codex
+    to: build.codex
+  - kind: can_observe
+    from: review.codex
+    to: build.claude
+  - kind: can_observe
+    from: review.codex
+    to: build.grunt
+  - kind: escalates_to
+    from: review.codex
+    to: lead.orchestrator

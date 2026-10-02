@@ -1,0 +1,20 @@
+name: qb
+version: "1.0"
+description: Qubicle shared runtime settings (permissions, DeepSeek routing)
+
+resources:
+  runtime_resources:
+    - id: claude-orchestrator
+      path: claude-orchestrator.fragment.json
+      runtime: claude-code
+      type: claude_settings_fragment
+    - id: claude-builder
+      path: claude-builder.fragment.json
+      runtime: claude-code
+      type: claude_settings_fragment
+    - id: deepseek
+      path: deepseek.fragment.json
+      runtime: claude-code
+      type: claude_settings_fragment
+
+profiles: {}

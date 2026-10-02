@@ -1,0 +1,33 @@
+name: qubicle-reviewer
+version: "1.0"
+description: Reviews PRs, approves or requests changes, merges owned repos
+
+defaults:
+  runtime: codex
+
+imports:
+  - ref: local:../../vendor/openrig-shared
+  - ref: local:../qb
+
+profiles:
+  default:
+    uses:
+      skills: [review-team, verification-before-completion]
+      guidance: [role]
+      subagents: []
+      plugins: [shared:openrig-core]
+      runtime_resources: [shared:claude-default-settings, shared:claude-default-mcp, shared:codex-default-config, shared:claude-activity-hooks]
+
+resources:
+  guidance:
+    - id: role
+      path: role.md
+      target: AGENTS.md
+      merge: managed_block
+
+startup:
+  files:
+    - path: role.md
+      delivery_hint: send_text
+      required: true
+  actions: []
