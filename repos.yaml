@@ -14,6 +14,9 @@ repos:
 # Local folders the team works in that aren't GitHub repos. Always treated as
 # shared: no PRs, no pushes. Read the folder's own rules file before touching it.
 workspaces:
-  - name: midas-stage1
-    path: ~/midas/stage1
-    rules: request.md
+  - name: midas-bench
+    path: ~/midas/bench-runs
+    rules: ~/qubicle/work/specs/midas-bench/notion.md   # Notion snapshot (gitignored)
+  - name: midas-bench-arms
+    path: ~/midas/bench-arms
+    rules: ~/qubicle/work/specs/midas-bench/notion.md
