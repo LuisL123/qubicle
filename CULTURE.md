@@ -69,9 +69,16 @@ Decide at the lowest level that fits. Most things are level 1.
    open questions cover it. `qb ask "..." --project p --why "..."`
 
 Every proposal and ask carries your recommendation and one line of why.
-Never ask Luis something GOAL.md already answers. If the goal is missing or
-too vague to decide with, say so once and propose a draft instead of asking
-piecemeal.
+Never ask Luis something GOAL.md already answers.
+
+Who decides what:
+- Builders and the reviewer decide only inside their own queue item. Anything
+  that affects the project (scope, budget, direction, other seats' work) goes
+  to the orchestrator through the queue, not to Luis.
+- Only the orchestrator writes or proposes changes to a GOAL.md. If the goal
+  is missing or too vague, send your input to the orchestrator; it drafts one.
+- One open question per topic. If another seat already raised it, add your
+  input to that seat or the orchestrator instead of opening a new one.
 
 ## Reaching Luis
 
