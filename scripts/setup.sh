@@ -118,6 +118,7 @@ plist dev.qubicle.morning "$(at 9 0)"                                           
 plist dev.qubicle.evening "$(at 19 0)"                                          "$NODE" "$ROOT/bin/qb.mjs" digest evening
 plist dev.qubicle.pulse   "<key>StartInterval</key><integer>10800</integer>"    "$NODE" "$ROOT/bin/qb.mjs" digest pulse
 plist dev.qubicle.update  "$(at 4 30)"                                          /bin/bash "$ROOT/scripts/update.sh"
+plist dev.qubicle.tick    "<key>StartInterval</key><integer>300</integer>"      "$NODE" "$ROOT/bin/qb.mjs" tick
 if security find-generic-password -s qubicle-discord -w >/dev/null 2>&1; then
   plist dev.qubicle.discord "<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>" "$NODE" "$ROOT/bridge/discord.mjs"
 fi

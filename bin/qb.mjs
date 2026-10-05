@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // qb: Qubicle helper. Mode, asks, notifications, worktrees, merge policy, digests.
 import { execFileSync, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -101,8 +102,10 @@ function cmdAsk(argv) {
   const id = Date.now().toString(36).slice(-6);
   const from = opts.from || process.env.OPENRIG_SESSION_NAME || ORCH;
   const options = typeof opts.options === "string" ? opts.options.split("|").map((s) => s.trim()) : [];
-  writeJson(p("inbox", `${id}.json`), { id, from, question, options, status: "open", created: now() });
-  feed({ level: "decision", id, text: question, options, from });
+  const project = typeof opts.project === "string" ? opts.project : null;
+  const why = typeof opts.why === "string" ? opts.why : null;
+  writeJson(p("inbox", `${id}.json`), { id, kind: "ask", from, question, options, project, why, status: "open", created: now() });
+  feed({ level: "decision", id, text: question, options, why, from });
   if (getMode() === "active") macNotify("Qubicle needs you", question);
   console.log(id);
 }
@@ -129,10 +132,23 @@ function cmdAnswer([id, ...rest]) {
   const file = p("inbox", `${id}.json`);
   const ask = readJson(file);
   if (!ask) die(`no ask with id ${id}`);
-  Object.assign(ask, { status: "answered", answer: text, answered: now() });
+  if (ask.status !== "open") die(`${id} is already ${ask.status}`);
+  let msg;
+  if (ask.kind === "proposal") {
+    const approved = /^(go ahead|yes|ok|okay|approve|approved|do it|sure)\b/i.test(text.trim());
+    Object.assign(ask, { status: approved ? "approved" : "objected", answer: text, answered: now() });
+    msg = approved
+      ? `[Luis] re ${id}: go ahead with your proposal ("${ask.question.slice(0, 80)}").`
+      : `[Luis] re ${id}: OBJECTION. Do not go ahead with "${ask.question.slice(0, 80)}". Luis says: ${text}`;
+    logDecision(ask.project, `${seat(ask.from)} proposed: ${ask.question} → Luis ${approved ? "approved" : `objected: ${text}`}`);
+  } else {
+    Object.assign(ask, { status: "answered", answer: text, answered: now() });
+    msg = `[Luis] re ${id} ("${ask.question.slice(0, 80)}"): ${text}`;
+    if (ask.project) logDecision(ask.project, `${seat(ask.from)} asked: ${ask.question} → Luis: ${text}`);
+  }
   writeJson(file, ask);
   feed({ level: "answer", id, text });
-  const ok = rigSend(ask.from, `[Luis] re ${id} ("${ask.question.slice(0, 80)}"): ${text}`);
+  const ok = rigSend(ask.from, msg);
   console.log(ok ? `sent to ${ask.from}` : `saved, but ${ask.from} is not running. Answer again once the rig is up.`);
 }
 
@@ -140,6 +156,122 @@ function rigSend(session, text) {
   const r = spawnSync("rig", ["send", session, text], { encoding: "utf8" });
   if (r.status !== 0) log(`qb: could not reach ${session} (${(r.stderr || "").trim().split("\n")[0]})`);
   return r.status === 0;
+}
+
+// ---------- projects: goals, decisions, proposals ----------
+// Each project lives in work/specs/<project>/ with GOAL.md (Luis's intent) and
+// DECISIONS.md (one line per decision, newest last).
+
+const seat = (s) => String(s || "").replace(/@qubicle$/, "");
+const projDir = (name) => path.join(WORK, "specs", name);
+
+function projectOf(opts, required = true) {
+  const name = typeof opts.project === "string" ? opts.project : process.env.QB_PROJECT;
+  if (!name) { if (required) die("--project <name> is required (a folder under work/specs/)"); return null; }
+  if (!/^[\w.-]+$/.test(name)) die(`bad project name "${name}"`);
+  return name;
+}
+
+function logDecision(project, line) {
+  const dir = projDir(project || "_general");
+  fs.mkdirSync(dir, { recursive: true });
+  const f = path.join(dir, "DECISIONS.md");
+  if (!fs.existsSync(f)) fs.writeFileSync(f, `# Decisions: ${project || "general"}\n\nOne line each, newest last. Luis audits this instead of approving live.\n\n`);
+  fs.appendFileSync(f, `- ${local()} · ${line.replace(/\s*\n\s*/g, " ")}\n`);
+}
+
+function parseDuration(s) {
+  const m = /^(\d+(?:\.\d+)?)\s*(m|min|h|d)$/i.exec(String(s || "").trim());
+  if (!m) return null;
+  return Number(m[1]) * { m: 60e3, min: 60e3, h: 3600e3, d: 86400e3 }[m[2].toLowerCase()];
+}
+
+const goalFile = (project) => path.join(projDir(project), "GOAL.md");
+const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+
+function cmdGoal(argv) {
+  const { opts, pos: [project] } = parseArgs(argv);
+  if (!project) die("usage: qb goal <project> [--init | --lock | --unlock]");
+  const f = goalFile(project);
+  if (opts.unlock) {
+    const locks = readJson(p("goals.json"), {});
+    delete locks[project];
+    writeJson(p("goals.json"), locks);
+    if (fs.existsSync(f)) fs.chmodSync(f, 0o644);
+    console.log(`unlocked ${f}. Edit it, then qb goal ${project} --lock`);
+    return;
+  }
+  if (opts.init) {
+    if (fs.existsSync(f)) die(`${f} already exists`);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, fs.readFileSync(path.join(ROOT, "templates", "GOAL.md"), "utf8").replaceAll("{{PROJECT}}", project));
+    console.log(f);
+    return;
+  }
+  if (!fs.existsSync(f)) die(`no goal yet for ${project}. Run /grill-me with the orchestrator, then qb goal ${project} --lock`);
+  if (opts.lock) {
+    const locks = readJson(p("goals.json"), {});
+    locks[project] = { file: f, sha: sha(f), locked: now(), alerted: false };
+    writeJson(p("goals.json"), locks);
+    fs.chmodSync(f, 0o444);
+    feed({ level: "info", text: `Goal locked for ${project}` });
+    console.log(`locked ${f}`);
+    return;
+  }
+  process.stdout.write(fs.readFileSync(f, "utf8"));
+}
+
+function cmdDecide(argv) {
+  const { opts, pos } = parseArgs(argv);
+  const text = pos.join(" ");
+  if (!text) die('usage: qb decide "<decision>" --project <p> --why "<reason>"');
+  const project = projectOf(opts);
+  const who = seat(process.env.OPENRIG_SESSION_NAME || "luis");
+  logDecision(project, `${who} decided: ${text}${opts.why ? ` (why: ${opts.why})` : ""}`);
+  feed({ level: "decided", text: `${text}${opts.why ? ` (why: ${opts.why})` : ""}`, project });
+  console.log("logged");
+}
+
+function cmdPropose(argv) {
+  const { opts, pos } = parseArgs(argv);
+  const text = pos.join(" ");
+  if (!text) die('usage: qb propose "<plan>" --project <p> --why "<reason>" [--in 3h]');
+  const project = projectOf(opts);
+  const ms = parseDuration(opts.in || "3h");
+  if (!ms) die(`bad --in "${opts.in}" (use 90m, 3h, 1d)`);
+  mkdirs();
+  const id = Date.now().toString(36).slice(-6);
+  const from = process.env.OPENRIG_SESSION_NAME || ORCH;
+  const deadline = new Date(Date.now() + ms).toISOString();
+  const why = typeof opts.why === "string" ? opts.why : null;
+  writeJson(p("inbox", `${id}.json`), { id, kind: "proposal", from, question: text, options: ["Go ahead", "Object"], project, why, deadline, status: "open", created: now() });
+  feed({ level: "decision", kind: "proposal", id, text, why, deadline, options: ["Go ahead", "Object"], from, project });
+  if (getMode() === "active") macNotify("Qubicle: going ahead unless you object", text);
+  console.log(`${id} (goes ahead at ${local(new Date(deadline))} unless Luis objects)`);
+}
+
+// Run every few minutes by launchd: approve proposals nobody objected to, and
+// flag a locked GOAL.md that changed.
+function cmdTick() {
+  mkdirs();
+  for (const a of openAsks()) {
+    if (a.kind !== "proposal" || Date.now() < Date.parse(a.deadline)) continue;
+    Object.assign(a, { status: "approved", answer: "no objection (deadline passed)", answered: now() });
+    writeJson(p("inbox", `${a.id}.json`), a);
+    logDecision(a.project, `${seat(a.from)} proposed: ${a.question} → approved by silence`);
+    feed({ level: "answer", id: a.id, text: "No objection by the deadline, going ahead" });
+    rigSend(a.from, `[qb] re ${a.id}: no objection by the deadline. Go ahead with "${a.question.slice(0, 80)}".`);
+  }
+  const locks = readJson(p("goals.json"), {});
+  let dirty = false;
+  for (const [project, l] of Object.entries(locks)) {
+    const changed = !fs.existsSync(l.file) || sha(l.file) !== l.sha;
+    if (changed && !l.alerted) {
+      feed({ level: "urgent", text: `GOAL.md for ${project} changed or vanished after you locked it. Check it, then qb goal ${project} --lock again.` });
+      l.alerted = true; dirty = true;
+    }
+  }
+  if (dirty) writeJson(p("goals.json"), locks);
 }
 
 // ---------- repos / policy ----------
@@ -333,7 +465,10 @@ const HELP = `qb: Qubicle helper
   qb answer <id> "<reply>"      answer one; the asking seat gets it
   qb feed [--n 20]              recent notifications
 
-  qb ask "<question>" [--options "a|b"]          (agents) ask Luis
+  qb goal <project> [--init|--lock|--unlock]     show, start, lock or unlock a project's GOAL.md
+  qb decide "<decision>" --project p --why "..."  (agents) decide and log, no ping
+  qb propose "<plan>" --project p --why "..." [--in 3h]   go ahead unless Luis objects
+  qb ask "<question>" [--options "a|b"] [--project p] [--why "..."]   (agents) ask Luis
   qb notify "<text>" [--level info|digest|urgent] [--file f]
   qb wt <owner/repo> <branch> [--base main]      worktree path for a branch
   qb policy <owner/repo>                         owned or shared
@@ -347,6 +482,7 @@ const table = {
   status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
   merge: cmdMerge, digest: cmdDigest, open: cmdOpen, relaunch: cmdRelaunch, workspaces: cmdWorkspaces,
+  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick,
 };
 if (!cmd || cmd === "help" || cmd === "-h" || cmd === "--help") console.log(HELP);
 else if (!table[cmd]) die(`unknown command "${cmd}". Try qb help.`);

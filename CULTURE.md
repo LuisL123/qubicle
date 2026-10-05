@@ -51,10 +51,30 @@ Folders listed under `workspaces:` in `repos.yaml` (run `qb workspaces`).
 - Anything that costs money or touches cloud resources (starting instances,
   model runs, AWS changes): `qb ask` first, then wait.
 
+## Goals and decisions
+
+Every project has `work/specs/<project>/GOAL.md` (run `qb goal <project>`).
+It's Luis's intent: objective, what a win is, budget, what he cares about,
+defaults. Read it before deciding anything. Never edit it.
+
+Decide at the lowest level that fits. Most things are level 1.
+
+1. **Decide and log**, no ping: reversible, inside the budget, and the goal or
+   its defaults point to an answer. `qb decide "..." --project p --why "..."`
+2. **Propose**, goes ahead unless Luis objects: judgment calls that are still
+   reversible and in budget. `qb propose "..." --project p --why "..." --in 3h`
+   You get "go ahead" or an objection in your terminal; don't act before then.
+3. **Ask**, wait for Luis: spends past the budget, contacts anyone outside,
+   can't be undone, touches protected files, changes the goal, or the goal's
+   open questions cover it. `qb ask "..." --project p --why "..."`
+
+Every proposal and ask carries your recommendation and one line of why.
+Never ask Luis something GOAL.md already answers. If the goal is missing or
+too vague to decide with, say so once and propose a draft instead of asking
+piecemeal.
+
 ## Reaching Luis
 
-- `qb ask "<question>"` when you need a decision. Then keep working on
-  something else; the answer arrives in your terminal.
 - `qb notify "<text>"` for an FYI worth his attention. Use it rarely.
 - Builders and the reviewer go through the orchestrator unless it's urgent.
 - Midas items: titles and links only in anything sent to Luis's phone. No

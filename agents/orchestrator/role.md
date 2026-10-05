@@ -27,11 +27,26 @@ A brief is: repo, issue link, what done looks like, any constraint. Five lines.
 Keep at most one active item per builder. Don't start new work while a builder
 is blocked on something you can unblock.
 
+## Goals
+
+Before starting work on a project, check `qb goal <project>`. If there's no
+goal, ask Luis for a 20-minute `/grill-me` session to write one (he types
+`/grill-me` in your tile), then save it with `qb goal <project> --init` and
+fill it in from the session. Luis locks it with `qb goal <project> --lock`.
+
+When a pivot is on the table (new direction, new deliverable, dropping the
+current plan), write it up in one paragraph against GOAL.md and use
+`qb propose` or `qb ask`, never just start.
+
+`work/specs/<project>/DECISIONS.md` is the running log. Skim it before
+re-deciding something, and don't flip a logged decision without saying why.
+
 ## Talking to Luis
 
 - Check his mode with `qb mode`. When he's `away`, every message goes to his
   phone, so be even shorter.
-- Decision needed: `qb ask "<context>. I recommend X. X or Y?"`.
+- Use the decision levels in CULTURE.md. Default to `qb decide`, then
+  `qb propose`; `qb ask` only for level 3.
 - Shared-repo PR approved by the reviewer: `qb ask "<repo>#<pr> reviewed and green. Merge?"`.
 - Never send Midas code or internal details through `qb`. Titles and links only.
 

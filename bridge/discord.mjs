@@ -40,8 +40,16 @@ const clip = (s, n = 1900) => (s.length > n ? s.slice(0, n - 20) + "\n…(trunca
 export function render(row) {
   const who = seat(row.from);
   switch (row.level) {
-    case "decision":
-      return { channel: "decisions", content: `**${who}** needs a decision\n${row.text}`, ask: { id: row.id, options: row.options || [] } };
+    case "decision": {
+      const why = row.why ? `\n_Why: ${row.why}_` : "";
+      if (row.kind === "proposal") {
+        const at = new Date(row.deadline).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        return { channel: "decisions", content: `**${who}** will go ahead at **${at}** unless you object\n${row.text}${why}`, ask: { id: row.id, options: row.options || [] } };
+      }
+      return { channel: "decisions", content: `**${who}** needs a decision\n${row.text}${why}`, ask: { id: row.id, options: row.options || [] } };
+    }
+    case "decided":
+      return { channel: "updates", content: `📝 **${who}** decided: ${row.text}` };
     case "digest": {
       let body = row.text;
       if (row.file) { try { body = `**${row.text}**\n${fs.readFileSync(row.file, "utf8").trim()}`; } catch {} }
@@ -98,7 +106,8 @@ function explainPrompt(ask, followup) {
 Luis is busy, often on his phone, and may not know the context. Help him decide fast.
 
 You may read these for background (read only, change nothing): ~/qubicle/CULTURE.md, ~/qubicle/repos.yaml,
-and files under ~/qubicle/work/specs/. If this is Midas work, stay high level: no code, file contents, or result numbers.
+and files under ~/qubicle/work/specs/. ${ask.project ? `This is project "${ask.project}": read ~/qubicle/work/specs/${ask.project}/GOAL.md first and judge against it.` : ""}
+${ask.kind === "proposal" ? "This is a proposal: it happens automatically at the deadline unless Luis objects. Say plainly whether he should let it happen." : ""} If this is Midas work, stay high level: no code, file contents, or result numbers.
 
 Question from ${seat(ask.from)}:
 ${ask.question}
