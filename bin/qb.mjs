@@ -257,8 +257,12 @@ function rigNodes() {
   return nodes;
 }
 
+// Returns null when tmux can't be read (e.g. launchd's bare environment), so the
+// watchdog never acts on missing data.
 function paneCommands() {
-  const r = spawnSync("tmux", ["list-panes", "-a", "-F", "#{session_name}\t#{pane_current_command}"], { encoding: "utf8" });
+  const r = spawnSync("tmux", ["-u", "list-panes", "-a", "-F", "#{session_name}\t#{pane_current_command}"],
+    { encoding: "utf8", env: { ...process.env, LANG: process.env.LANG || "en_US.UTF-8", LC_CTYPE: process.env.LC_CTYPE || "en_US.UTF-8" } });
+  if (r.status !== 0 || !(r.stdout || "").trim()) return null;
   const map = {};
   for (const line of (r.stdout || "").split("\n")) { const [sess, cmd] = line.split("\t"); if (sess) map[sess] = cmd; }
   return map;
@@ -283,16 +287,24 @@ function cmdWatch(argv = []) {
   }
   st.daemonDown = false;
   const panes = paneCommands();
+  // Safety: if tmux can't be read, or every seat looks gone at once, that's a
+  // detection problem, not five crashes. Don't relaunch anything; say so once.
+  const allGone = panes && nodes.length > 1 && nodes.every((n) => panes[n.canonicalSessionName] === undefined);
+  if (!panes || allGone) {
+    if (!st.blindSpot) act("skip crash checks: can't see tmux sessions", () =>
+      feed({ from: "watchdog", level: "urgent", text: `Watchdog can't see the seats' tmux sessions (${panes ? "none matched" : "tmux unreadable"}), so it skipped crash checks. Nothing was relaunched.` }));
+    st.blindSpot = true;
+  } else st.blindSpot = false;
 
   for (const n of nodes) {
     const id = n.logicalId, sess = n.canonicalSessionName;
     const s = (st.seats[id] ??= { shellTicks: 0, relaunches: [], inputSince: null, inputNotified: false, idleSince: null, nudges: 0, lastNudge: 0, escalated: false });
     const state = n.agentActivity?.state || "unknown";
     const open = (n.pendingWorkCount || 0) + (n.inProgressWorkCount || 0);
-    const pane = panes[sess];
+    const pane = panes ? panes[sess] : undefined;
 
-    // 1. crashed harness
-    if (pane === undefined || SHELLS.has(pane)) {
+    // 1. crashed harness (only when we can actually see tmux)
+    if (!st.blindSpot && (pane === undefined || SHELLS.has(pane))) {
       s.shellTicks += 1;
       if (s.shellTicks >= 2) { // two ticks in a row, so we don't catch a seat mid-startup
         s.relaunches = s.relaunches.filter((x) => t - x < 60 * MIN);
