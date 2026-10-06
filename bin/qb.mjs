@@ -153,6 +153,20 @@ function cmdAnswer([id, ...rest]) {
   console.log(ok ? `sent to ${ask.from}` : `saved, but ${ask.from} is not running. Answer again once the rig is up.`);
 }
 
+function cmdClose([id, ...rest]) {
+  const why = rest.join(" ") || "no longer needed";
+  if (!id) die('usage: qb close <id> "why"   (retire a stale or superseded ask)');
+  const file = p("inbox", `${id}.json`);
+  const ask = readJson(file);
+  if (!ask) die(`no ask with id ${id}`);
+  if (ask.status !== "open") die(`${id} is already ${ask.status}`);
+  Object.assign(ask, { status: "closed", answer: why, answered: now() });
+  writeJson(file, ask);
+  feed({ level: "answer", id, text: `closed: ${why}` });
+  if (ask.project) logDecision(ask.project, `${seat(ask.from)} closed its ask: ${ask.question} (${why})`);
+  console.log(`${id} closed`);
+}
+
 function rigSend(session, text) {
   const r = spawnSync("rig", ["send", session, text], { encoding: "utf8" });
   if (r.status !== 0) log(`qb: could not reach ${session} (${(r.stderr || "").trim().split("\n")[0]})`);
@@ -824,11 +838,12 @@ const HELP = `qb: Qubicle helper
   qb approve <owner/repo> <pr>                   mark reviewed
   qb merge <owner/repo> <pr>                     merge if owned, approved, green
   qb digest morning|evening|pulse                ask the orchestrator for a digest
-  qb workspaces                                  local (non-GitHub) workspaces`;
+  qb workspaces                                  local (non-GitHub) workspaces
+  qb close <id> "why"                            retire a stale or superseded ask`;
 
 const [cmd, ...args] = process.argv.slice(2);
 const table = {
-  status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, feed: cmdFeed,
+  status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, close: cmdClose, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
   merge: cmdMerge, digest: cmdDigest, open: cmdOpen, relaunch: cmdRelaunch, workspaces: cmdWorkspaces,
   goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique, blind: cmdBlind, watch: cmdWatch, sandbox: cmdSandbox, usage: cmdUsage,

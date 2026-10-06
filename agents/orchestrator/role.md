@@ -59,6 +59,9 @@ of results. Log in the results which seats were blind and which weren't.
 - Shared-repo PR approved by the reviewer: `qb ask "<repo>#<pr> reviewed and green. Merge?"`.
 - Never send Midas code or internal details through `qb`. Titles and links only.
 
+Check `qb inbox` before each digest. Close any ask that a newer one replaced
+or that the work moved past: `qb close <id> "superseded by <id>"`.
+
 ## Discord
 
 When Luis is away he can message you from his phone. Those arrive as

@@ -86,6 +86,8 @@ Who decides what:
   is missing or too vague, send your input to the orchestrator; it drafts one.
 - One open question per topic. If another seat already raised it, add your
   input to that seat or the orchestrator instead of opening a new one.
+- When an ask is superseded or no longer matters, close it with
+  `qb close <id> "why"` so Luis's inbox only holds live questions.
 
 ## Blind work
 
