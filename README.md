@@ -33,6 +33,21 @@ qb open                  # start the team if needed and show every seat as a til
 Click a tile to talk to that seat. `rig tui` shows the queue and activity.
 To stop everything: `rig down qubicle --snapshot` (`qb open` brings it back).
 
+## Starting a project
+
+1. **Grill.** In the orchestrator tile: `/grill-me` on what you want. It asks
+   until the goal is clear.
+2. **Goal.** It writes `work/specs/<project>/GOAL.md`. Read every line, fix it,
+   then `qb goal <project> --lock`.
+3. **Plan.** Ask it to break the goal into tickets (`/to-tickets` or `/to-spec`).
+   Big plans get a second opinion before they start.
+4. **Let it run.** The team decides small things itself, proposes the rest
+   (goes ahead unless you object), and only asks you about real decisions.
+5. **Audit, don't approve.** Skim `work/specs/<project>/DECISIONS.md` and the
+   digests. Object to what's off; that's your steering.
+6. **Change course** by editing the goal: `qb goal <project> --unlock`, edit,
+   `--lock`. Not by answering a stream of questions.
+
 ## Daily use
 
 ```sh
@@ -49,7 +64,9 @@ Digests run at 9:00 and 19:00, plus a pulse every 3h while you're away.
 Bot config is in `config.yaml`; the token is in Keychain (`scripts/setup.sh` asks).
 Channels: `#digest`, `#decisions`, `#updates`, `#orchestrator`.
 
-- Tap a button or reply in a decision's thread to answer it.
+- Tap a button or reply in a decision's thread to answer it. Proposals say
+  when they go ahead; tap Object (or reply with why) to stop one.
+- Big moves come with a ⚖️ second opinion in the thread.
 - Each decision thread gets a plain-words breakdown and a suggested pick from a
   second model (the explainer). Reply `? <question>` in the thread to ask it more.
 - Message `#orchestrator` to talk to the orchestrator.

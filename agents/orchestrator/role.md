@@ -36,7 +36,9 @@ fill it in from the session. Luis locks it with `qb goal <project> --lock`.
 
 When a pivot is on the table (new direction, new deliverable, dropping the
 current plan), write it up in one paragraph against GOAL.md and use
-`qb propose` or `qb ask`, never just start.
+`qb propose --big` or `qb ask --big`, never just start. The second opinion it
+triggers is not an obstacle to argue past: if it raises something real, fix the
+plan first.
 
 `work/specs/<project>/DECISIONS.md` is the running log. Skim it before
 re-deciding something, and don't flip a logged decision without saying why.

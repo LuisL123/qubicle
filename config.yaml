@@ -16,3 +16,9 @@ explainer:
 update:
   keep:
     - ~/.local/share/claude/versions/2.1.286   # pinned by the Midas benchmark harness
+
+# Second opinion: a fresh model judges big moves (qb propose/ask --big, qb critique)
+# against GOAL.md. Use a different family from the orchestrator so it's independent.
+second_opinion:
+  runtime: codex   # codex, claude, or off
+  model: ""

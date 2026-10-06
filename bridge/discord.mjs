@@ -44,9 +44,9 @@ export function render(row) {
       const why = row.why ? `\n_Why: ${row.why}_` : "";
       if (row.kind === "proposal") {
         const at = new Date(row.deadline).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-        return { channel: "decisions", content: `**${who}** will go ahead at **${at}** unless you object\n${row.text}${why}`, ask: { id: row.id, options: row.options || [] } };
+        return { channel: "decisions", content: `**${who}** will go ahead at **${at}** unless you object\n${row.text}${why}`, ask: { id: row.id, options: row.options || [] }, critique: row.critique };
       }
-      return { channel: "decisions", content: `**${who}** needs a decision\n${row.text}${why}`, ask: { id: row.id, options: row.options || [] } };
+      return { channel: "decisions", content: `**${who}** needs a decision\n${row.text}${why}`, ask: { id: row.id, options: row.options || [] }, critique: row.critique };
     }
     case "decided":
       return { channel: "updates", content: `📝 **${who}** decided: ${row.text}` };
@@ -109,6 +109,7 @@ You may read these for background (read only, change nothing): ~/qubicle/CULTURE
 and files under ~/qubicle/work/specs/. ${ask.project ? `This is project "${ask.project}": read ~/qubicle/work/specs/${ask.project}/GOAL.md first and judge against it.` : ""}
 ${ask.kind === "proposal" ? "This is a proposal: it happens automatically at the deadline unless Luis objects. Say plainly whether he should let it happen." : ""} If this is Midas work, stay high level: no code, file contents, or result numbers.
 
+${ask.critique?.text ? `An independent second opinion already reviewed this (verdict: ${ask.critique.verdict}):\n${ask.critique.text}\nWeigh it, but make your own call.\n` : ""}
 Question from ${seat(ask.from)}:
 ${ask.question}
 Options: ${ask.options?.length ? ask.options.join(" | ") : "(free text)"}
@@ -187,6 +188,7 @@ async function post(m) {
     state.asks[m.ask.id] = { channelId: ch.id, messageId: msg.id, options: m.ask.options };
     if (thread) state.threads[thread.id] = m.ask.id;
     saveState();
+    if (thread && m.critique) await thread.send({ content: clip(`⚖️ **Second opinion**\n${m.critique}`), flags: SILENT }).catch(() => {});
     if (thread && EXPLAINER.runtime !== "off") explain(m.ask.id);
   }
 }

@@ -68,6 +68,13 @@ Decide at the lowest level that fits. Most things are level 1.
    can't be undone, touches protected files, changes the goal, or the goal's
    open questions cover it. `qb ask "..." --project p --why "..."`
 
+**Big moves get a second opinion** (`--big` on `qb propose` or `qb ask`): a new
+direction or deliverable, dropping the current plan, spend above 20% of the
+remaining budget, or anything the goal's stop rules touch. A fresh model judges
+it against GOAL.md and its review goes to Luis with your proposal. If it
+opposes, the proposal waits for Luis instead of going ahead by silence. Use
+`qb critique "..." --project p` to sanity-check a plan yourself, no ping.
+
 Every proposal and ask carries your recommendation and one line of why.
 Never ask Luis something GOAL.md already answers.
 

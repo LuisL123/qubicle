@@ -104,8 +104,9 @@ function cmdAsk(argv) {
   const options = typeof opts.options === "string" ? opts.options.split("|").map((s) => s.trim()) : [];
   const project = typeof opts.project === "string" ? opts.project : null;
   const why = typeof opts.why === "string" ? opts.why : null;
-  writeJson(p("inbox", `${id}.json`), { id, kind: "ask", from, question, options, project, why, status: "open", created: now() });
-  feed({ level: "decision", id, text: question, options, why, from });
+  const c = opts.big && project ? critique(project, question, why, from) : null;
+  writeJson(p("inbox", `${id}.json`), { id, kind: "ask", from, question, options, project, why, critique: c, status: "open", created: now() });
+  feed({ level: "decision", id, text: question, options, why, from, critique: c?.text });
   if (getMode() === "active") macNotify("Qubicle needs you", question);
   console.log(id);
 }
@@ -232,6 +233,57 @@ function cmdDecide(argv) {
   console.log("logged");
 }
 
+// ---------- second opinion ----------
+// A fresh model with no stake in the plan judges it against GOAL.md. Used for
+// big moves (--big on propose/ask) and on demand (qb critique).
+
+function secondOpinionCfg() {
+  try {
+    const c = YAML.parse(fs.readFileSync(path.join(ROOT, "config.yaml"), "utf8")) || {};
+    return { runtime: "codex", model: "", ...(c.second_opinion || {}) };
+  } catch { return { runtime: "codex", model: "" }; }
+}
+
+function critique(project, plan, why, from) {
+  const cfg = secondOpinionCfg();
+  if (cfg.runtime === "off") return null;
+  const dir = projDir(project);
+  const prompt = `You are the second opinion for Qubicle, Luis's team of coding agents. Another agent
+(${seat(from)}) wants to make a big move. You have no stake in its plan. Judge it only
+against what Luis wants. Read first (read only, change nothing): ${dir}/GOAL.md and the
+last 30 lines of ${dir}/DECISIONS.md, plus any file the plan names.
+
+The plan:
+${plan}
+Their reason: ${why || "(none given)"}
+
+Be skeptical but fair. Reply in at most 150 words, plain words, no em dashes, exactly:
+**Verdict:** support, concerns, or oppose
+**Strongest case against:** ...
+**Goal check:** does it break the budget, a stop rule, an out-of-bounds item, or the priority order?
+**What would change my mind:** ...`;
+  const out = path.join(os.tmpdir(), `qb-critique-${process.pid}-${Date.now()}.txt`);
+  const [cmd, args] = cfg.runtime === "claude"
+    ? ["claude", ["-p", prompt, ...(cfg.model ? ["--model", cfg.model] : []), "--permission-mode", "plan"]]
+    : ["codex", ["exec", "-s", "read-only", "--skip-git-repo-check", "--ephemeral", "-C", ROOT, "-o", out, ...(cfg.model ? ["-m", cfg.model] : []), prompt]];
+  log(`qb: getting a second opinion (${cfg.runtime})...`);
+  const r = spawnSync(cmd, args, { cwd: ROOT, encoding: "utf8", timeout: 240_000, maxBuffer: 8 << 20 });
+  let text = "";
+  try { text = fs.readFileSync(out, "utf8").trim(); fs.unlinkSync(out); } catch { text = (r.stdout || "").trim(); }
+  if (!text) return { verdict: "unavailable", text: "Second opinion unavailable (the model call failed)." };
+  const m = /verdict:\**\s*(support|concerns|oppose)/i.exec(text);
+  return { verdict: m ? m[1].toLowerCase() : "concerns", text };
+}
+
+function cmdCritique(argv) {
+  const { opts, pos } = parseArgs(argv);
+  const project = projectOf(opts);
+  const plan = typeof opts.file === "string" ? fs.readFileSync(opts.file, "utf8") : pos.join(" ");
+  if (!plan) die('usage: qb critique "<plan>" --project <p> [--why "..."] [--file plan.md]');
+  const c = critique(project, plan, opts.why, process.env.OPENRIG_SESSION_NAME || "luis");
+  console.log(c ? c.text : "second opinion is off (config.yaml)");
+}
+
 function cmdPropose(argv) {
   const { opts, pos } = parseArgs(argv);
   const text = pos.join(" ");
@@ -244,10 +296,19 @@ function cmdPropose(argv) {
   const from = process.env.OPENRIG_SESSION_NAME || ORCH;
   const deadline = new Date(Date.now() + ms).toISOString();
   const why = typeof opts.why === "string" ? opts.why : null;
-  writeJson(p("inbox", `${id}.json`), { id, kind: "proposal", from, question: text, options: ["Go ahead", "Object"], project, why, deadline, status: "open", created: now() });
-  feed({ level: "decision", kind: "proposal", id, text, why, deadline, options: ["Go ahead", "Object"], from, project });
+  const c = opts.big ? critique(project, text, why, from) : null;
+  if (c?.verdict === "oppose") {
+    // An opposed big move never goes ahead by silence: it becomes a plain ask.
+    writeJson(p("inbox", `${id}.json`), { id, kind: "ask", from, question: text, options: ["Go ahead", "Don't"], project, why, critique: c, status: "open", created: now() });
+    feed({ level: "decision", id, text, why, options: ["Go ahead", "Don't"], from, project, critique: c.text });
+    if (getMode() === "active") macNotify("Qubicle needs you", text);
+    console.log(`${id}: the second opinion OPPOSED this, so it waits for Luis instead of going ahead.\n\n${c.text}`);
+    return;
+  }
+  writeJson(p("inbox", `${id}.json`), { id, kind: "proposal", from, question: text, options: ["Go ahead", "Object"], project, why, deadline, critique: c, status: "open", created: now() });
+  feed({ level: "decision", kind: "proposal", id, text, why, deadline, options: ["Go ahead", "Object"], from, project, critique: c?.text });
   if (getMode() === "active") macNotify("Qubicle: going ahead unless you object", text);
-  console.log(`${id} (goes ahead at ${local(new Date(deadline))} unless Luis objects)`);
+  console.log(`${id} (goes ahead at ${local(new Date(deadline))} unless Luis objects)${c ? `\n\nSecond opinion:\n${c.text}` : ""}`);
 }
 
 // Run every few minutes by launchd: approve proposals nobody objected to, and
@@ -467,8 +528,10 @@ const HELP = `qb: Qubicle helper
 
   qb goal <project> [--init|--lock|--unlock]     show, start, lock or unlock a project's GOAL.md
   qb decide "<decision>" --project p --why "..."  (agents) decide and log, no ping
-  qb propose "<plan>" --project p --why "..." [--in 3h]   go ahead unless Luis objects
-  qb ask "<question>" [--options "a|b"] [--project p] [--why "..."]   (agents) ask Luis
+  qb propose "<plan>" --project p --why "..." [--in 3h] [--big]   go ahead unless Luis objects
+                                                 --big: second opinion first; if it opposes, Luis must answer
+  qb critique "<plan>" --project p [--file f]     get a second opinion against GOAL.md, no ping
+  qb ask "<question>" [--options "a|b"] [--project p] [--why "..."] [--big]   (agents) ask Luis
   qb notify "<text>" [--level info|digest|urgent] [--file f]
   qb wt <owner/repo> <branch> [--base main]      worktree path for a branch
   qb policy <owner/repo>                         owned or shared
@@ -482,7 +545,7 @@ const table = {
   status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
   merge: cmdMerge, digest: cmdDigest, open: cmdOpen, relaunch: cmdRelaunch, workspaces: cmdWorkspaces,
-  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick,
+  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique,
 };
 if (!cmd || cmd === "help" || cmd === "-h" || cmd === "--help") console.log(HELP);
 else if (!table[cmd]) die(`unknown command "${cmd}". Try qb help.`);
