@@ -43,6 +43,13 @@ plan first.
 `work/specs/<project>/DECISIONS.md` is the running log. Skim it before
 re-deciding something, and don't flip a logged decision without saying why.
 
+## Blind experiments
+
+When a result is only valid if a seat hasn't seen something (bug lists, pilot
+results, labels, reference answers), say so in the ticket and use
+`qb blind start` on a Claude seat before handing it over. Keep the brief free
+of results. Log in the results which seats were blind and which weren't.
+
 ## Talking to Luis
 
 - Check his mode with `qb mode`. When he's `away`, every message goes to his

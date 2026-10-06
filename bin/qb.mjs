@@ -233,6 +233,79 @@ function cmdDecide(argv) {
   console.log("logged");
 }
 
+// ---------- blind seats ----------
+// A blind seat must not see certain files (results, labels, answers) so its work
+// stays an honest experiment. Only Claude seats: their permission deny rules
+// block the Read/Edit/Grep/Glob tools, and /clear drops what they already read.
+// Codex seats have no per-path deny, so they can't be blinded.
+
+const CLAUDE_SEAT_DIRS = { "lead.orchestrator": "orchestrator", "build.claude": "builder-claude", "build.grunt": "grunt" };
+const sessionOf = (seatRef) => `${seatRef.replace(".", "-")}@${RIG}`;
+
+function seatSettingsFile(seatRef) {
+  const dir = CLAUDE_SEAT_DIRS[seatRef];
+  if (!dir) die(`${seatRef} can't be blinded: only Claude seats can (${Object.keys(CLAUDE_SEAT_DIRS).join(", ")}). Codex has no per-path read block.`);
+  return path.join(ROOT, "seats", dir, ".claude", "settings.local.json");
+}
+
+function absPath(p) {
+  const x = p.trim().replace(/^~(?=\/|$)/, os.homedir());
+  return path.isAbsolute(x) ? path.normalize(x) : path.resolve(ROOT, x);
+}
+
+// Claude Code permission rules: "//abs/path" means an absolute path.
+const denyRulesFor = (abs) => ["Read", "Edit"].flatMap((t) => [`${t}(/${abs})`, `${t}(/${abs}/**)`]);
+
+function cmdBlind(argv) {
+  const { opts, pos: [sub, seatRef] } = parseArgs(argv);
+  const blind = readJson(p("blind.json"), {});
+  if (sub === "status" || !sub) {
+    const rows = Object.entries(blind);
+    if (!rows.length) { console.log("No blind seats."); return; }
+    for (const [s, b] of rows) console.log(`${s}  blind since ${local(new Date(b.started))} for ${b.project}\n  hidden: ${b.hide.join(", ")}`);
+    return;
+  }
+  if (!["start", "end"].includes(sub) || !seatRef) die('usage: qb blind start <pod.member> --project p --hide "path1,path2" [--why "..."] | qb blind end <pod.member> | qb blind status');
+  const file = seatSettingsFile(seatRef);
+  const settings = readJson(file, {});
+  settings.permissions ??= {};
+  const deny = new Set(settings.permissions.deny || []);
+
+  if (sub === "start") {
+    const project = projectOf(opts);
+    if (typeof opts.hide !== "string") die("--hide is required: comma-separated paths the seat must not see");
+    if (blind[seatRef]) die(`${seatRef} is already blind (qb blind end ${seatRef} first)`);
+    const hide = opts.hide.split(",").map(absPath).filter(Boolean);
+    const rules = hide.flatMap(denyRulesFor);
+    rules.forEach((r) => deny.add(r));
+    settings.permissions.deny = [...deny];
+    writeJson(file, settings);
+    blind[seatRef] = { project, hide, rules, why: opts.why || null, started: now() };
+    writeJson(p("blind.json"), blind);
+    // Wipe what the seat already read, then tell it the rules.
+    spawnSync("rig", ["send", sessionOf(seatRef), "/clear", "--raw"], { encoding: "utf8" });
+    spawnSync("sleep", ["3"]);
+    rigSend(sessionOf(seatRef), `[qb] You are now BLIND for project ${project}. Do not read, search, or ask anyone about: ${hide.join(", ")}. Reading them would invalidate the experiment. If your task seems to need them, stop and tell the orchestrator. Your context was cleared on purpose; take your next item from the queue.`);
+    logDecision(project, `${seat(process.env.OPENRIG_SESSION_NAME || "luis")} made ${seatRef} blind to ${hide.join(", ")}${opts.why ? ` (why: ${opts.why})` : ""}`);
+    feed({ level: "info", text: `${seatRef} is now blind for ${project}` });
+    console.log(`${seatRef} is blind: context cleared, ${rules.length} deny rules added`);
+    return;
+  }
+
+  // end
+  const b = blind[seatRef];
+  if (!b) die(`${seatRef} isn't blind`);
+  b.rules.forEach((r) => deny.delete(r));
+  settings.permissions.deny = [...deny];
+  writeJson(file, settings);
+  delete blind[seatRef];
+  writeJson(p("blind.json"), blind);
+  rigSend(sessionOf(seatRef), `[qb] You are no longer blind for ${b.project}. The hidden paths are readable again.`);
+  logDecision(b.project, `${seatRef} is no longer blind`);
+  feed({ level: "info", text: `${seatRef} is no longer blind for ${b.project}` });
+  console.log(`${seatRef} unblinded`);
+}
+
 // ---------- second opinion ----------
 // A fresh model with no stake in the plan judges it against GOAL.md. Used for
 // big moves (--big on propose/ask) and on demand (qb critique).
@@ -531,6 +604,8 @@ const HELP = `qb: Qubicle helper
   qb propose "<plan>" --project p --why "..." [--in 3h] [--big]   go ahead unless Luis objects
                                                  --big: second opinion first; if it opposes, Luis must answer
   qb critique "<plan>" --project p [--file f]     get a second opinion against GOAL.md, no ping
+  qb blind start <pod.member> --project p --hide "a,b"   clear a Claude seat's context and block paths
+  qb blind end <pod.member> | qb blind status
   qb ask "<question>" [--options "a|b"] [--project p] [--why "..."] [--big]   (agents) ask Luis
   qb notify "<text>" [--level info|digest|urgent] [--file f]
   qb wt <owner/repo> <branch> [--base main]      worktree path for a branch
@@ -545,7 +620,7 @@ const table = {
   status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
   merge: cmdMerge, digest: cmdDigest, open: cmdOpen, relaunch: cmdRelaunch, workspaces: cmdWorkspaces,
-  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique,
+  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique, blind: cmdBlind,
 };
 if (!cmd || cmd === "help" || cmd === "-h" || cmd === "--help") console.log(HELP);
 else if (!table[cmd]) die(`unknown command "${cmd}". Try qb help.`);

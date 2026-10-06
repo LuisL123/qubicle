@@ -87,6 +87,16 @@ Who decides what:
 - One open question per topic. If another seat already raised it, add your
   input to that seat or the orchestrator instead of opening a new one.
 
+## Blind work
+
+Some work only counts if the seat hasn't seen certain files: fuzz targets
+written without knowing the bugs, labels made without seeing the grader, held-out
+answers. For that, the orchestrator runs `qb blind start <seat> --project p
+--hide "<paths>"` before assigning the item, writes a brief with no results in
+it, and runs `qb blind end <seat>` after. Only Claude seats can be blinded.
+If you're blind and a task seems to need a hidden file, stop and tell the
+orchestrator. Never work around a block.
+
 ## Reaching Luis
 
 - `qb notify "<text>"` for an FYI worth his attention. Use it rarely.
