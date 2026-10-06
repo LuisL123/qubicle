@@ -75,6 +75,13 @@ Channels: `#digest`, `#decisions`, `#updates`, `#orchestrator`.
 At your desk everything still posts, silently. Away, you get pinged.
 Logs: `~/.qubicle/logs/dev.qubicle.discord.log`.
 
+## Watchdog
+
+Runs every 5 minutes (plain script, no AI): relaunches a seat whose harness
+crashed, tells you when a seat sits on a prompt for 15+ minutes, nudges seats
+idle on open work, and escalates to the orchestrator (flagging likely provider
+refusals). `qb watch --dry` shows what it would do right now.
+
 ## Updates
 
 `scripts/update.sh` runs nightly at 4:30: Codex, Claude Code, herdr and gh update

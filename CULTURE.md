@@ -127,6 +127,8 @@ Keep both short.
 
 ## Hygiene
 
-- Don't silently wait. If blocked, say on what and move on.
+- Don't silently wait. If blocked, say on what and move on. A watchdog nudges
+  seats that sit idle on open items; answer it by continuing, or by blocking or
+  handing back the item with a reason.
 - Don't stop to ask what you can figure out from the repo.
 - Don't touch files outside your worktree, `work/`, or `~/.qubicle/`.

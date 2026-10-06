@@ -233,6 +233,114 @@ function cmdDecide(argv) {
   console.log("logged");
 }
 
+// ---------- watchdog ----------
+// Plain code, no AI. Runs from qb tick every 5 minutes:
+//  - seat's harness exited (tile is a bare shell) or its session vanished -> relaunch
+//  - seat stuck on a prompt for 15+ min -> tell Luis
+//  - seat idle with open queue items for 30+ min -> nudge it, then tell the orchestrator
+//    (and flag a likely provider refusal so the work goes to a different model)
+const SHELLS = new Set(["zsh", "-zsh", "bash", "-bash", "sh", "fish", "login"]);
+const REFUSAL = /content (filter|polic)|usage polic|safety (check|filter|system)|flagged|can(no|')t (help|assist|comply)|unable to (help|assist)|violat/i;
+const MIN = 60e3;
+
+function rigNodes() {
+  const r = spawnSync("rig", ["ps", "--nodes", "--rig", RIG, "--json", "--fields",
+    "logicalId,canonicalSessionName,runtime,agentActivity,pendingWorkCount,inProgressWorkCount"], { encoding: "utf8", timeout: 30_000 });
+  if (r.status !== 0) return null;
+  const nodes = [];
+  const walk = (v) => {
+    if (!v || typeof v !== "object") return;
+    if (v.logicalId && v.canonicalSessionName) { nodes.push(v); return; }
+    Object.values(v).forEach(walk);
+  };
+  try { walk(JSON.parse(r.stdout)); } catch { return null; }
+  return nodes;
+}
+
+function paneCommands() {
+  const r = spawnSync("tmux", ["list-panes", "-a", "-F", "#{session_name}\t#{pane_current_command}"], { encoding: "utf8" });
+  const map = {};
+  for (const line of (r.stdout || "").split("\n")) { const [sess, cmd] = line.split("\t"); if (sess) map[sess] = cmd; }
+  return map;
+}
+
+function cmdWatch(argv = []) {
+  const { opts } = parseArgs(argv);
+  const dry = !!opts.dry;
+  const act = (what, fn) => { if (dry) console.log(`would: ${what}`); else { fn(); log(`watchdog: ${what}`); } };
+  const st = readJson(p("watch.json"), { seats: {}, daemonDown: false });
+  const t = Date.now();
+
+  const nodes = rigNodes();
+  if (!nodes) {
+    if (!st.daemonDown) act("OpenRig not answering: run boot.sh and tell Luis", () => {
+      spawnSync("bash", [path.join(ROOT, "scripts", "boot.sh")], { stdio: "ignore", timeout: 120_000 });
+      feed({ from: "watchdog", level: "urgent", text: "Watchdog: OpenRig wasn't answering. I ran boot.sh; check qb status." });
+    });
+    st.daemonDown = true;
+    if (!dry) writeJson(p("watch.json"), st);
+    return;
+  }
+  st.daemonDown = false;
+  const panes = paneCommands();
+
+  for (const n of nodes) {
+    const id = n.logicalId, sess = n.canonicalSessionName;
+    const s = (st.seats[id] ??= { shellTicks: 0, relaunches: [], inputSince: null, inputNotified: false, idleSince: null, nudges: 0, lastNudge: 0, escalated: false });
+    const state = n.agentActivity?.state || "unknown";
+    const open = (n.pendingWorkCount || 0) + (n.inProgressWorkCount || 0);
+    const pane = panes[sess];
+
+    // 1. crashed harness
+    if (pane === undefined || SHELLS.has(pane)) {
+      s.shellTicks += 1;
+      if (s.shellTicks >= 2) { // two ticks in a row, so we don't catch a seat mid-startup
+        s.relaunches = s.relaunches.filter((x) => t - x < 60 * MIN);
+        if (s.relaunches.length < 2) {
+          act(`relaunch ${id} (${pane === undefined ? "session gone" : "harness exited"})`, () => {
+            spawnSync(process.execPath, [fileURLToPath(import.meta.url), "relaunch", id, ...(pane === undefined ? [] : ["--force"])], { stdio: "ignore", timeout: 120_000 });
+            feed({ from: "watchdog", level: "info", text: `Watchdog relaunched ${id}: its ${pane === undefined ? "session was gone" : "harness had exited"}` });
+          });
+          s.relaunches.push(t);
+        } else if (s.shellTicks === 2) {
+          act(`tell Luis ${id} keeps crashing`, () => feed({ from: "watchdog", level: "urgent", text: `${id} crashed again after 2 relaunches this hour. Look at its tile: qb relaunch ${id} --force` }));
+        }
+        s.shellTicks = 0;
+      }
+      continue;
+    }
+    s.shellTicks = 0;
+
+    // 2. waiting on a prompt
+    if (state === "needs-input") {
+      s.inputSince ??= t;
+      if (!s.inputNotified && t - s.inputSince >= 15 * MIN) {
+        act(`tell Luis ${id} is stuck on a prompt`, () => feed({ from: "watchdog", level: "urgent", text: `${id} has been waiting on a prompt (${n.agentActivity?.reason || "unknown"}) for ${Math.round((t - s.inputSince) / MIN)} min. Open its tile to answer.` }));
+        s.inputNotified = true;
+      }
+    } else { s.inputSince = null; s.inputNotified = false; }
+
+    // 3. idle with open work
+    if (state === "idle" && open > 0) {
+      s.idleSince ??= t;
+      const idleMin = (t - s.idleSince) / MIN;
+      if (idleMin >= 30 && s.nudges < 2 && t - s.lastNudge >= 30 * MIN) {
+        act(`nudge ${id} (${open} open items, idle ${Math.round(idleMin)} min)`, () =>
+          rigSend(sess, `[qb watchdog] You have ${open} open queue item(s) but have been idle for ${Math.round(idleMin)} min. Pick it back up, or block/hand it back with a reason (rig queue list --owned).`));
+        s.nudges += 1; s.lastNudge = t;
+      } else if (s.nudges >= 2 && !s.escalated && t - s.lastNudge >= 30 * MIN) {
+        const cap = spawnSync("rig", ["capture", sess, "--lines", "60"], { encoding: "utf8" });
+        const refused = REFUSAL.test(cap.stdout || "");
+        const hint = refused ? ` Its screen looks like a provider refusal, so reassign the item to a different model (a Claude seat if this is Codex).` : "";
+        act(`escalate ${id} to the orchestrator${refused ? " (looks like a refusal)" : ""}`, () =>
+          rigSend(ORCH, `[qb watchdog] ${id} has ${open} open item(s), has been idle ${Math.round(idleMin)} min and ignored two nudges.${hint} Unblock or reassign it.`));
+        s.escalated = true;
+      }
+    } else { s.idleSince = null; s.nudges = 0; s.lastNudge = 0; s.escalated = false; }
+  }
+  if (!dry) writeJson(p("watch.json"), st);
+}
+
 // ---------- blind seats ----------
 // A blind seat must not see certain files (results, labels, answers) so its work
 // stays an honest experiment. Only Claude seats: their permission deny rules
@@ -406,6 +514,7 @@ function cmdTick() {
     }
   }
   if (dirty) writeJson(p("goals.json"), locks);
+  try { cmdWatch(); } catch (e) { log(`watchdog error: ${e.message}`); }
 }
 
 // ---------- repos / policy ----------
@@ -606,6 +715,7 @@ const HELP = `qb: Qubicle helper
   qb critique "<plan>" --project p [--file f]     get a second opinion against GOAL.md, no ping
   qb blind start <pod.member> --project p --hide "a,b"   clear a Claude seat's context and block paths
   qb blind end <pod.member> | qb blind status
+  qb watch [--dry]                               run the watchdog once (it also runs every 5 min)
   qb ask "<question>" [--options "a|b"] [--project p] [--why "..."] [--big]   (agents) ask Luis
   qb notify "<text>" [--level info|digest|urgent] [--file f]
   qb wt <owner/repo> <branch> [--base main]      worktree path for a branch
@@ -620,7 +730,7 @@ const table = {
   status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
   merge: cmdMerge, digest: cmdDigest, open: cmdOpen, relaunch: cmdRelaunch, workspaces: cmdWorkspaces,
-  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique, blind: cmdBlind,
+  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique, blind: cmdBlind, watch: cmdWatch,
 };
 if (!cmd || cmd === "help" || cmd === "-h" || cmd === "--help") console.log(HELP);
 else if (!table[cmd]) die(`unknown command "${cmd}". Try qb help.`);
