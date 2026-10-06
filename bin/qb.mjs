@@ -239,7 +239,9 @@ function cmdDecide(argv) {
 //  - seat stuck on a prompt for 15+ min -> tell Luis
 //  - seat idle with open queue items for 30+ min -> nudge it, then tell the orchestrator
 //    (and flag a likely provider refusal so the work goes to a different model)
-const SHELLS = new Set(["zsh", "-zsh", "bash", "-bash", "sh", "fish", "login"]);
+// Interactive login shells only. Not "sh": OpenRig starts Codex through /bin/sh, so a
+// healthy Codex seat shows "sh" as its pane command.
+const SHELLS = new Set(["zsh", "-zsh", "bash", "-bash", "fish", "-fish"]);
 const REFUSAL = /content (filter|polic)|usage polic|safety (check|filter|system)|flagged|can(no|')t (help|assist|comply)|unable to (help|assist)|violat/i;
 const MIN = 60e3;
 
@@ -304,7 +306,9 @@ function cmdWatch(argv = []) {
     const pane = panes ? panes[sess] : undefined;
 
     // 1. crashed harness (only when we can actually see tmux)
-    if (!st.blindSpot && (pane === undefined || SHELLS.has(pane))) {
+    // A seat OpenRig reports as busy is alive, whatever tmux shows.
+    const looksDead = pane === undefined || SHELLS.has(pane);
+    if (!st.blindSpot && looksDead && !["running", "needs-input"].includes(state)) {
       s.shellTicks += 1;
       if (s.shellTicks >= 2) { // two ticks in a row, so we don't catch a seat mid-startup
         s.relaunches = s.relaunches.filter((x) => t - x < 60 * MIN);
