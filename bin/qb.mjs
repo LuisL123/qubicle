@@ -270,6 +270,10 @@ function paneCommands() {
   return map;
 }
 
+function watchdogCfg() {
+  try { return (YAML.parse(fs.readFileSync(path.join(ROOT, "config.yaml"), "utf8")) || {}).watchdog || {}; } catch { return {}; }
+}
+
 function cmdWatch(argv = []) {
   const { opts } = parseArgs(argv);
   const dry = !!opts.dry;
@@ -305,26 +309,32 @@ function cmdWatch(argv = []) {
     const open = (n.pendingWorkCount || 0) + (n.inProgressWorkCount || 0);
     const pane = panes ? panes[sess] : undefined;
 
-    // 1. crashed harness (only when we can actually see tmux)
-    // A seat OpenRig reports as busy is alive, whatever tmux shows.
+    // 1. crashed harness. Alert-only unless config.yaml sets watchdog.auto_relaunch: true,
+    // because a wrong guess here kills a working seat.
     const looksDead = pane === undefined || SHELLS.has(pane);
     if (!st.blindSpot && looksDead && !["running", "needs-input"].includes(state)) {
       s.shellTicks += 1;
-      if (s.shellTicks >= 2) { // two ticks in a row, so we don't catch a seat mid-startup
-        s.relaunches = s.relaunches.filter((x) => t - x < 60 * MIN);
-        if (s.relaunches.length < 2) {
-          act(`relaunch ${id} (${pane === undefined ? "session gone" : "harness exited"})`, () => {
-            spawnSync(process.execPath, [fileURLToPath(import.meta.url), "relaunch", id, ...(pane === undefined ? [] : ["--force"])], { stdio: "ignore", timeout: 120_000 });
-            feed({ from: "watchdog", level: "info", text: `Watchdog relaunched ${id}: its ${pane === undefined ? "session was gone" : "harness had exited"}` });
-          });
-          s.relaunches.push(t);
-        } else if (s.shellTicks === 2) {
-          act(`tell Luis ${id} keeps crashing`, () => feed({ from: "watchdog", level: "urgent", text: `${id} crashed again after 2 relaunches this hour. Look at its tile: qb relaunch ${id} --force` }));
+      if (s.shellTicks >= 2 && !s.crashAlerted) {
+        const detail = `tmux shows "${pane ?? "no session"}", OpenRig says "${state}"`;
+        if (watchdogCfg().auto_relaunch) {
+          s.relaunches = s.relaunches.filter((x) => t - x < 60 * MIN);
+          if (s.relaunches.length < 2) {
+            act(`relaunch ${id} (${detail})`, () => {
+              spawnSync(process.execPath, [fileURLToPath(import.meta.url), "relaunch", id, ...(pane === undefined ? [] : ["--force"])], { stdio: "ignore", timeout: 120_000 });
+              feed({ from: "watchdog", level: "info", text: `Watchdog relaunched ${id} (${detail})` });
+            });
+            s.relaunches.push(t);
+            s.shellTicks = 0;
+            continue;
+          }
         }
-        s.shellTicks = 0;
+        act(`tell Luis ${id} looks crashed (${detail})`, () => feed({ from: "watchdog", level: "urgent",
+          text: `${id} looks crashed (${detail}). If its tile is a bare shell: qb relaunch ${id} --force. If it's fine, tell Claude the watchdog misread it.` }));
+        s.crashAlerted = true;
       }
       continue;
     }
+    s.crashAlerted = false;
     s.shellTicks = 0;
 
     // 2. waiting on a prompt
