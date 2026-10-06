@@ -82,6 +82,15 @@ crashed, tells you when a seat sits on a prompt for 15+ minutes, nudges seats
 idle on open work, and escalates to the orchestrator (flagging likely provider
 refusals). `qb watch --dry` shows what it would do right now.
 
+## Safety and usage
+
+- `qb sandbox on <seat>` puts a Claude seat's shell commands in macOS's sandbox:
+  writes only to its own folders and tool caches, no reading secrets, blind
+  blocks enforced by the OS. Lists live under `sandbox:` in `config.yaml`.
+  Codex seats can't be sandboxed while they run with full access.
+- `qb usage` shows tokens per seat, provider limit signals and the DeepSeek
+  balance. Digests include a line from it.
+
 ## Updates
 
 `scripts/update.sh` runs nightly at 4:30: Codex, Claude Code, herdr and gh update

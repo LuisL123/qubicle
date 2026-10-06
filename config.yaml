@@ -22,3 +22,15 @@ update:
 second_opinion:
   runtime: codex   # codex, claude, or off
   model: ""
+
+# Sandbox for Claude seats (qb sandbox on <seat>). Shell commands can write only
+# to the seat's folder, its additional directories (work/, ~/.qubicle, bench
+# folders) and the paths below, and can't read the deny_read paths.
+sandbox:
+  allow_write: [~/.cargo, ~/.rustup, ~/.npm, ~/.cache, ~/Library/Caches]
+  deny_read: [~/.ssh, ~/.aws, ~/.gnupg, ~/Documents, ~/Desktop, ~/Downloads,
+              ~/Library/Messages, ~/Library/Mail, ~/midas/stage1/auth, ~/midas/stage1/aws]
+  # Trusted tools that need the keychain, the OpenRig daemon or nested sandboxes
+  # (the bench harness uses Seatbelt itself), so they run outside the sandbox.
+  excluded_commands: ["rig *", "qb *", "gh *", "git push *", "git fetch *", "git pull *",
+                      "git clone *", "./run.sh *", "./run_all.sh *", "./prepare.sh *"]

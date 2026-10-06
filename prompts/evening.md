@@ -18,4 +18,5 @@ Write {{OUT}} in this shape. Max 15 lines. Plain words.
 ```
 
 Queue overnight work only from issues that are clear enough to finish without
-Luis. Then run: qb notify --level digest --file {{OUT}} "Evening wrap-up ready"
+Luis. Also run `qb usage` and add one line: any seat burning far more than the others, any provider limit signal, and the DeepSeek balance if it's under $2.
+Then run: qb notify --level digest --file {{OUT}} "Evening wrap-up ready"

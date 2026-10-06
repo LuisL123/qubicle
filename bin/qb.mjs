@@ -352,7 +352,7 @@ const sessionOf = (seatRef) => `${seatRef.replace(".", "-")}@${RIG}`;
 
 function seatSettingsFile(seatRef) {
   const dir = CLAUDE_SEAT_DIRS[seatRef];
-  if (!dir) die(`${seatRef} can't be blinded: only Claude seats can (${Object.keys(CLAUDE_SEAT_DIRS).join(", ")}). Codex has no per-path read block.`);
+  if (!dir) die(`${seatRef}: only Claude seats support this (${Object.keys(CLAUDE_SEAT_DIRS).join(", ")}). Codex has no per-path block while it runs with full access.`);
   return path.join(ROOT, "seats", dir, ".claude", "settings.local.json");
 }
 
@@ -412,6 +412,64 @@ function cmdBlind(argv) {
   logDecision(b.project, `${seatRef} is no longer blind`);
   feed({ level: "info", text: `${seatRef} is no longer blind for ${b.project}` });
   console.log(`${seatRef} unblinded`);
+}
+
+// ---------- sandbox (Claude seats) ----------
+// Turns on Claude Code's own OS-level sandbox (Seatbelt on macOS) for a seat's
+// shell commands: writes only to the seat, work dirs and tool caches, no reads of
+// secrets, no "retry unsandboxed" escape. Blind deny rules become OS-enforced too.
+// Settings apply to the running seat, no restart. Defaults live in config.yaml.
+
+function sandboxBlock() {
+  let c = {};
+  try { c = (YAML.parse(fs.readFileSync(path.join(ROOT, "config.yaml"), "utf8")) || {}).sandbox || {}; } catch {}
+  return {
+    enabled: true,
+    allowUnsandboxedCommands: false,
+    failIfUnavailable: true,
+    excludedCommands: c.excluded_commands || [],
+    filesystem: { allowWrite: c.allow_write || [], denyRead: c.deny_read || [] },
+  };
+}
+
+function cmdSandbox(argv) {
+  const { pos: [sub, seatRef] } = parseArgs(argv);
+  if (sub === "status" || !sub) {
+    for (const [ref] of Object.entries(CLAUDE_SEAT_DIRS)) {
+      const on = readJson(seatSettingsFile(ref), {}).sandbox?.enabled === true;
+      console.log(`${ref.padEnd(18)} ${on ? "sandboxed" : "off"}`);
+    }
+    console.log("(Codex seats have no equivalent while they run with full access.)");
+    return;
+  }
+  if (!["on", "off"].includes(sub) || !seatRef) die("usage: qb sandbox on|off <pod.member> | qb sandbox status");
+  const file = seatSettingsFile(seatRef);
+  const settings = readJson(file, {});
+  if (sub === "on") settings.sandbox = sandboxBlock(); else delete settings.sandbox;
+  writeJson(file, settings);
+  feed({ level: "info", text: `Sandbox ${sub} for ${seatRef}` });
+  console.log(`sandbox ${sub} for ${seatRef} (applies to its next shell command)`);
+}
+
+// ---------- usage ----------
+
+function cmdUsage(argv) {
+  const { opts } = parseArgs(argv);
+  const win = typeof opts.window === "string" ? opts.window : "24h";
+  const show = (title, cmd, args) => {
+    const r = spawnSync(cmd, args, { encoding: "utf8", timeout: 30_000 });
+    console.log(`## ${title}\n${((r.stdout || "") + (r.status ? r.stderr || "" : "")).trim() || "(nothing)"}\n`);
+  };
+  show(`Tokens by seat, last ${win}`, "rig", ["usage", "top", "--window", win]);
+  show("Provider limit signals", "rig", ["provider", "signals"]);
+  const key = tryRun("security", ["find-generic-password", "-s", "qubicle-deepseek", "-w"]);
+  if (key) {
+    const r = spawnSync("curl", ["-s", "--max-time", "15", "https://api.deepseek.com/user/balance", "-H", `Authorization: Bearer ${key}`], { encoding: "utf8" });
+    try {
+      const b = JSON.parse(r.stdout).balance_infos?.[0];
+      console.log(`## DeepSeek balance\n${b ? `${b.total_balance} ${b.currency}` : "(unknown)"}`);
+    } catch { console.log("## DeepSeek balance\n(unavailable)"); }
+  }
 }
 
 // ---------- second opinion ----------
@@ -716,6 +774,8 @@ const HELP = `qb: Qubicle helper
   qb blind start <pod.member> --project p --hide "a,b"   clear a Claude seat's context and block paths
   qb blind end <pod.member> | qb blind status
   qb watch [--dry]                               run the watchdog once (it also runs every 5 min)
+  qb sandbox on|off <pod.member> | status        OS-level sandbox for a Claude seat's shell commands
+  qb usage [--window 24h]                        tokens per seat, provider limits, DeepSeek balance
   qb ask "<question>" [--options "a|b"] [--project p] [--why "..."] [--big]   (agents) ask Luis
   qb notify "<text>" [--level info|digest|urgent] [--file f]
   qb wt <owner/repo> <branch> [--base main]      worktree path for a branch
@@ -730,7 +790,7 @@ const table = {
   status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
   merge: cmdMerge, digest: cmdDigest, open: cmdOpen, relaunch: cmdRelaunch, workspaces: cmdWorkspaces,
-  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique, blind: cmdBlind, watch: cmdWatch,
+  goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique, blind: cmdBlind, watch: cmdWatch, sandbox: cmdSandbox, usage: cmdUsage,
 };
 if (!cmd || cmd === "help" || cmd === "-h" || cmd === "--help") console.log(HELP);
 else if (!table[cmd]) die(`unknown command "${cmd}". Try qb help.`);
