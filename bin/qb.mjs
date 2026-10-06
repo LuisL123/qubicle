@@ -239,9 +239,6 @@ function cmdDecide(argv) {
 //  - seat stuck on a prompt for 15+ min -> tell Luis
 //  - seat idle with open queue items for 30+ min -> nudge it, then tell the orchestrator
 //    (and flag a likely provider refusal so the work goes to a different model)
-// Interactive login shells only. Not "sh": OpenRig starts Codex through /bin/sh, so a
-// healthy Codex seat shows "sh" as its pane command.
-const SHELLS = new Set(["zsh", "-zsh", "bash", "-bash", "fish", "-fish"]);
 const REFUSAL = /content (filter|polic)|usage polic|safety (check|filter|system)|flagged|can(no|')t (help|assist|comply)|unable to (help|assist)|violat/i;
 const MIN = 60e3;
 
@@ -259,14 +256,32 @@ function rigNodes() {
   return nodes;
 }
 
-// Returns null when tmux can't be read (e.g. launchd's bare environment), so the
-// watchdog never acts on missing data.
+// Returns { session: alive } or null when tmux can't be read (e.g. launchd's bare
+// environment), so the watchdog never acts on missing data. "Alive" means the pane's
+// process tree contains the harness. Pane names alone mislead: on this Mac Claude shows
+// as its version ("2.1.290") and a healthy Codex seat as "bash" (OpenRig's wrapper),
+// while a dead tile is just the login shell with nothing under it.
+const HARNESS = /claude|codex|node|^\d+\.\d+\.\d+$/i;
 function paneCommands() {
-  const r = spawnSync("tmux", ["-u", "list-panes", "-a", "-F", "#{session_name}\t#{pane_current_command}"],
-    { encoding: "utf8", env: { ...process.env, LANG: process.env.LANG || "en_US.UTF-8", LC_CTYPE: process.env.LC_CTYPE || "en_US.UTF-8" } });
+  const env = { ...process.env, LANG: process.env.LANG || "en_US.UTF-8", LC_CTYPE: process.env.LC_CTYPE || "en_US.UTF-8" };
+  const r = spawnSync("tmux", ["-u", "list-panes", "-a", "-F", "#{session_name}\t#{pane_pid}\t#{pane_current_command}"], { encoding: "utf8", env });
   if (r.status !== 0 || !(r.stdout || "").trim()) return null;
+  const ps = spawnSync("ps", ["-A", "-o", "pid=,ppid=,comm="], { encoding: "utf8" });
+  if (ps.status !== 0) return null;
+  const kids = {}, comm = {};
+  for (const line of ps.stdout.split("\n")) {
+    const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+    if (!m) continue;
+    comm[m[1]] = path.basename(m[3].trim());
+    (kids[m[2]] ??= []).push(m[1]);
+  }
+  const hasHarness = (pid, depth = 0) =>
+    HARNESS.test(comm[pid] || "") || (depth < 6 && (kids[pid] || []).some((c) => hasHarness(c, depth + 1)));
   const map = {};
-  for (const line of (r.stdout || "").split("\n")) { const [sess, cmd] = line.split("\t"); if (sess) map[sess] = cmd; }
+  for (const line of r.stdout.split("\n")) {
+    const [sess, pid, cmd] = line.split("\t");
+    if (sess) map[sess] = { alive: hasHarness(pid) || HARNESS.test(cmd || ""), cmd };
+  }
   return map;
 }
 
@@ -311,11 +326,11 @@ function cmdWatch(argv = []) {
 
     // 1. crashed harness. Alert-only unless config.yaml sets watchdog.auto_relaunch: true,
     // because a wrong guess here kills a working seat.
-    const looksDead = pane === undefined || SHELLS.has(pane);
+    const looksDead = pane === undefined || !pane.alive;
     if (!st.blindSpot && looksDead && !["running", "needs-input"].includes(state)) {
       s.shellTicks += 1;
       if (s.shellTicks >= 2 && !s.crashAlerted) {
-        const detail = `tmux shows "${pane ?? "no session"}", OpenRig says "${state}"`;
+        const detail = `tmux shows "${pane ? pane.cmd : "no session"}" with no Claude or Codex process under it, OpenRig says "${state}"`;
         if (watchdogCfg().auto_relaunch) {
           s.relaunches = s.relaunches.filter((x) => t - x < 60 * MIN);
           if (s.relaunches.length < 2) {
