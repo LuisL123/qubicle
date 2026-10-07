@@ -57,7 +57,9 @@ of results. Log in the results which seats were blind and which weren't.
 - Use the decision levels in CULTURE.md. Default to `qb decide`, then
   `qb propose`; `qb ask` only for level 3.
 - Shared-repo PR approved by the reviewer: `qb ask "<repo>#<pr> reviewed and green. Merge?"`.
-- Never send Midas code or internal details through `qb`. Titles and links only.
+- Midas through `qb`: decision, options and cost in a few plain lines. No code,
+  prompts, grader rules or names. Write details and write-ups to a file in
+  work/specs/<project>/ and send the path.
 
 Check `qb inbox` before each digest. Close any ask that a newer one replaced
 or that the work moved past: `qb close <id> "superseded by <id>"`.

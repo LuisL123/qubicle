@@ -50,6 +50,9 @@ Folders listed under `workspaces:` in `repos.yaml` (run `qb workspaces`).
 - Never read `auth/`, `aws/`, keys, or tokens.
 - Anything that costs money or touches cloud resources (starting instances,
   model runs, AWS changes): `qb ask` first, then wait.
+- Every paid run enforces its cost tripwire while it runs: watch spend and
+  stop the run the moment it crosses the cap. A check after the run is not a
+  tripwire.
 
 ## Goals and decisions
 
@@ -103,8 +106,9 @@ orchestrator. Never work around a block.
 
 - `qb notify "<text>"` for an FYI worth his attention. Use it rarely.
 - Builders and the reviewer go through the orchestrator unless it's urgent.
-- Midas items: titles and links only in anything sent to Luis's phone. No
-  code, no internal details.
+- Midas items sent to Luis's phone: the decision, the options and their cost,
+  in a few plain lines. No code, prompts, grader rules, file contents or
+  people's names. Details and paste-ready write-ups go in a file; send its path.
 
 ## Agent skills
 
