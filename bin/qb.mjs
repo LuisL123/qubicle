@@ -21,7 +21,8 @@ const mkdirs = () => ["inbox", "digests", "approvals"].forEach((d) => fs.mkdirSy
 const now = () => new Date().toISOString();
 // Local time, e.g. "2026-10-02 09:00"
 const local = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16).replace("T", " ");
-const log = (...a) => console.error(...a);
+// Timestamped when launchd captures it, plain in a terminal.
+const log = (...a) => console.error(...(process.stderr.isTTY ? a : [new Date().toISOString(), ...a]));
 const die = (msg, code = 1) => { log(`qb: ${msg}`); process.exit(code); };
 
 function run(cmd, args, opts = {}) {
