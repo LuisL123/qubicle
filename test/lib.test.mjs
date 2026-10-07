@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs, checksGreen, protectedHits } from "../bin/lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests } from "../bin/lib.mjs";
 
 // ---------- parseArgs ----------
 
@@ -160,4 +160,35 @@ test("protectedHits: no false prefix match without the slash", () => {
 test("protectedHits: empty inputs", () => {
   assert.deepEqual(protectedHits([], ["rig.yaml"]), []);
   assert.deepEqual(protectedHits(["rig.yaml"], undefined), []);
+});
+
+// ---------- digests ----------
+
+test("missedDigest: morning missed after 9:15", () => {
+  assert.equal(missedDigest("2026-10-06 11:34", [".2026-10-05T0900-morning.prompt.md"]), "morning");
+});
+
+test("missedDigest: morning already sent today", () => {
+  assert.equal(missedDigest("2026-10-06 09:40", [".2026-10-06T0900-morning.prompt.md"]), null);
+});
+
+test("missedDigest: waits for launchd before 9:15, gives up at noon", () => {
+  assert.equal(missedDigest("2026-10-06 09:05", []), null);
+  assert.equal(missedDigest("2026-10-06 12:00", []), null);
+});
+
+test("missedDigest: evening window", () => {
+  assert.equal(missedDigest("2026-10-06 19:30", []), "evening");
+  assert.equal(missedDigest("2026-10-06 19:30", [".2026-10-06T1900-evening.prompt.md"]), null);
+});
+
+test("staleDigests: only old prompts without output", () => {
+  const prompts = [
+    { name: ".2026-10-05T1900-evening.prompt.md", ageMin: 45 },
+    { name: ".2026-10-05T1449-pulse.prompt.md", ageMin: 50 },
+    { name: ".2026-10-06T1434-pulse.prompt.md", ageMin: 5 },
+    { name: ".2026-10-01T0900-morning.prompt.md", ageMin: 9000 },
+  ];
+  const files = ["2026-10-05T1449-pulse.md"];
+  assert.deepEqual(staleDigests(prompts, files), ["2026-10-05T1900-evening"]);
 });

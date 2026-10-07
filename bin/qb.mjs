@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { parseArgs, checksGreen, protectedHits } from "./lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fs.realpathSync(fileURLToPath(import.meta.url))), "..");
 const HOME = process.env.QUBICLE_HOME || path.join(os.homedir(), ".qubicle");
@@ -607,6 +607,33 @@ function cmdPropose(argv) {
 
 // Run every few minutes by launchd: approve proposals nobody objected to, and
 // flag a locked GOAL.md that changed.
+// Digests must not vanish silently: catch up on a missed morning/evening run,
+// re-send a prompt the orchestrator dropped, and tell Luis if it still never came.
+function checkDigests() {
+  const dir = p("digests");
+  const files = fs.readdirSync(dir);
+  const missed = missedDigest(local(), files);
+  if (missed) { log(`digest: catching up on missed ${missed}`); cmdDigest([missed]); return; }
+  const state = readJson(p("digest-retries.json"), {});
+  const prompts = files.filter((f) => f.endsWith(".prompt.md"))
+    .map((name) => ({ name, ageMin: (Date.now() - fs.statSync(path.join(dir, name)).mtimeMs) / 60000 }));
+  let dirty = false;
+  for (const base of staleDigests(prompts, files)) {
+    const st = state[base] || {};
+    const promptFile = path.join(dir, `.${base}.prompt.md`);
+    if (!st.resent) {
+      rigSend(ORCH, `[qb digest retry] This digest never arrived. Read and follow ${promptFile}`);
+      st.resent = now(); dirty = true;
+      log(`digest: re-sent ${base}`);
+    } else if (!st.alerted && Date.now() - Date.parse(st.resent) > 30 * 60000) {
+      feed({ level: "chat", text: `The ${base.split("-").pop()} digest (${base.slice(0, 15).replace("T", " ")}) never arrived, even after a retry. The orchestrator may be stuck; check it with qb open.` });
+      st.alerted = true; dirty = true;
+    }
+    state[base] = st;
+  }
+  if (dirty) writeJson(p("digest-retries.json"), state);
+}
+
 function cmdTick() {
   mkdirs();
   for (const a of openAsks()) {
@@ -627,6 +654,7 @@ function cmdTick() {
     }
   }
   if (dirty) writeJson(p("goals.json"), locks);
+  try { checkDigests(); } catch (e) { log(`digest check error: ${e.message}`); }
   try { cmdWatch(); } catch (e) { log(`watchdog error: ${e.message}`); }
 }
 

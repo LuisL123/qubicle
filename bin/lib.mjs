@@ -30,3 +30,28 @@ export function checksGreen(rollup) {
 export function protectedHits(files, patterns) {
   return (files || []).filter((f) => (patterns || []).some((p) => (p.endsWith("/") ? f.startsWith(p) : f === p)));
 }
+
+// Scheduled digests launchd missed (Mac asleep or off at 9:00 / 19:00).
+// localStamp is "YYYY-MM-DD HH:MM" local time; files are names in the digests dir.
+// Returns the kind to run now, or null. Waits 15 min so a late launchd fire wins.
+export const DIGEST_HOURS = { morning: 9, evening: 19 };
+export function missedDigest(localStamp, files) {
+  const day = localStamp.slice(0, 10);
+  const mins = Number(localStamp.slice(11, 13)) * 60 + Number(localStamp.slice(14, 16));
+  for (const [kind, h] of Object.entries(DIGEST_HOURS)) {
+    if (mins < h * 60 + 15 || mins >= (h + 3) * 60) continue;
+    const sent = files.some((f) => f.startsWith(`.${day}T`) && f.endsWith(`-${kind}.prompt.md`));
+    if (!sent) return kind;
+  }
+  return null;
+}
+
+// Digest prompts sent to the orchestrator that never produced their output file.
+// prompts: [{name, ageMin}] for ".<stamp>-<kind>.prompt.md" files. Returns the names
+// (without the leading dot and .prompt.md) older than minAge with no output yet.
+export function staleDigests(prompts, files, minAge = 30, maxAge = 360) {
+  return prompts
+    .filter((x) => x.ageMin >= minAge && x.ageMin <= maxAge)
+    .map((x) => x.name.replace(/^\./, "").replace(/\.prompt\.md$/, ""))
+    .filter((base) => !files.includes(`${base}.md`));
+}
