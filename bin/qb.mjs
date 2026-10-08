@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests } from "./lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fs.realpathSync(fileURLToPath(import.meta.url))), "..");
 const HOME = process.env.QUBICLE_HOME || path.join(os.homedir(), ".qubicle");
@@ -771,6 +771,12 @@ function cmdMerge([repo, pr]) {
 function cmdDigest([kind]) {
   if (!["morning", "evening", "pulse"].includes(kind)) die("usage: qb digest morning|evening|pulse");
   if (kind === "pulse" && getMode() !== "away") { log("qb: active, skipping pulse"); return; }
+  if (kind === "pulse") {
+    const rows = fs.existsSync(p("feed.jsonl"))
+      ? fs.readFileSync(p("feed.jsonl"), "utf8").trim().split("\n").slice(-200).map((l) => { try { return JSON.parse(l); } catch { return {}; } })
+      : [];
+    if (quietSinceLastDigest(rows)) { log("qb: nothing new since the last digest, skipping pulse"); return; }
+  }
   mkdirs();
   const stamp = local().replace(" ", "T").replace(":", "");
   const out = p("digests", `${stamp}-${kind}.md`);

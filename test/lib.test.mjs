@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests } from "../bin/lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest } from "../bin/lib.mjs";
 
 // ---------- parseArgs ----------
 
@@ -191,4 +191,10 @@ test("staleDigests: only old prompts without output", () => {
   ];
   const files = ["2026-10-05T1449-pulse.md"];
   assert.deepEqual(staleDigests(prompts, files), ["2026-10-05T1900-evening"]);
+});
+
+test("quietSinceLastDigest", () => {
+  assert.equal(quietSinceLastDigest([{ level: "chat" }, { level: "digest" }, { level: "mode" }]), true);
+  assert.equal(quietSinceLastDigest([{ level: "digest" }, { level: "decided" }]), false);
+  assert.equal(quietSinceLastDigest([{ level: "chat" }]), false);
 });

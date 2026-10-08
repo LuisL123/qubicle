@@ -55,3 +55,13 @@ export function staleDigests(prompts, files, minAge = 30, maxAge = 360) {
     .map((x) => x.name.replace(/^\./, "").replace(/\.prompt\.md$/, ""))
     .filter((base) => !files.includes(`${base}.md`));
 }
+
+// True when nothing worth a pulse happened since the last digest: only
+// digests, mode switches and answers (or nothing) in the feed after it.
+const QUIET_LEVELS = new Set(["digest", "mode", "answer"]);
+export function quietSinceLastDigest(rows) {
+  let i = rows.length - 1;
+  while (i >= 0 && rows[i].level !== "digest") i--;
+  if (i < 0) return false;
+  return rows.slice(i + 1).every((r) => QUIET_LEVELS.has(r.level));
+}
