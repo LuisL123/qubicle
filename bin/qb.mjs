@@ -658,6 +658,7 @@ function cmdTick() {
   if (dirty) writeJson(p("goals.json"), locks);
   try { checkDigests(); } catch (e) { log(`digest check error: ${e.message}`); }
   try { cmdWatch(); } catch (e) { log(`watchdog error: ${e.message}`); }
+  try { bootHeal(); } catch (e) { log(`boot heal error: ${e.message}`); }
 }
 
 // ---------- repos / policy ----------
@@ -832,10 +833,8 @@ function cmdDigest([kind]) {
 // Relaunch one seat, e.g. after its harness crashed. Seat = pod.member (build.codex).
 // --force: the harness crashed but its tmux session (a bare shell) is still up, so
 // OpenRig thinks the seat is running. Kill that session first, then relaunch.
-function cmdRelaunch(argv) {
-  const { opts, pos: [seatRef] } = parseArgs(argv);
-  if (!seatRef) die("usage: qb relaunch <pod.member> [--force]   e.g. qb relaunch build.codex --force");
-  if (opts.force) {
+function relaunchSeat(seatRef, force) {
+  if (force) {
     const session = `${seatRef.replace(".", "-")}@${RIG}`;
     const k = spawnSync("tmux", ["kill-session", "-t", `=${session}`], { encoding: "utf8" });
     log(k.status === 0 ? `qb: killed tmux session ${session}` : `qb: no tmux session ${session} (continuing)`);
@@ -849,11 +848,48 @@ function cmdRelaunch(argv) {
     Object.values(v).forEach(walk);
   };
   walk(JSON.parse(out));
-  if (!id) die(`rig ${RIG} not found in rig ps. Is it up? (qb open)`);
+  if (!id) { log(`rig ${RIG} not found in rig ps. Is it up? (qb open)`); return 1; }
   const r = spawnSync("rig", ["launch", id, seatRef.replace("-", ".")], { stdio: "inherit" });
-  if (r.status === 0 || opts.force) process.exit(r.status ?? 1);
-  log("qb: if it says 'already running' but the tile shows a bare shell, use --force");
-  process.exit(r.status ?? 1);
+  return r.status ?? 1;
+}
+
+function cmdRelaunch(argv) {
+  const { opts, pos: [seatRef] } = parseArgs(argv);
+  if (!seatRef) die("usage: qb relaunch <pod.member> [--force]   e.g. qb relaunch build.codex --force");
+  const status = relaunchSeat(seatRef, !!opts.force);
+  if (status !== 0 && !opts.force) log("qb: if it says 'already running' but the tile shows a bare shell, use --force");
+  process.exit(status);
+}
+
+// Relaunch every seat whose tile has no Claude/Codex process. Used after a
+// reboot, when OpenRig keeps the rig "running" but some harnesses never come back.
+function cmdHeal() {
+  const nodes = rigNodes();
+  if (!nodes) { log("qb heal: OpenRig not answering, run scripts/boot.sh first"); return []; }
+  const panes = paneCommands();
+  if (!panes) { log("qb heal: can't read tmux, not touching anything"); return []; }
+  const dead = nodes.filter((n) => !panes[n.canonicalSessionName]?.alive).map((n) => n.logicalId);
+  if (!dead.length) { console.log("All seats are running."); return []; }
+  const ok = dead.filter((ref) => relaunchSeat(ref, true) === 0);
+  const failed = dead.filter((ref) => !ok.includes(ref));
+  feed({ from: "watchdog", level: failed.length ? "urgent" : "chat",
+    text: `Seats that didn't come back: ${dead.join(", ")}. Relaunched ${ok.length ? ok.join(", ") : "none"}${failed.length ? `; failed: ${failed.join(", ")} (try qb relaunch <seat> --force)` : ""}.` });
+  console.log(`relaunched: ${ok.join(", ") || "none"}${failed.length ? `; failed: ${failed.join(", ")}` : ""}`);
+  return dead;
+}
+
+// Once per boot, a few minutes after boot.sh ran, heal seats that didn't come back.
+function bootHeal() {
+  const f = p("boot-at");
+  if (!fs.existsSync(f)) return;
+  const at = Date.parse(fs.readFileSync(f, "utf8").trim());
+  const age = Date.now() - at;
+  const st = readJson(p("watch.json"), { seats: {} });
+  if (!at || age < 3 * 60000 || age > 30 * 60000 || st.healedBoot === at) return;
+  st.healedBoot = at;
+  writeJson(p("watch.json"), st);
+  log("boot heal: checking seats after a restart");
+  cmdHeal();
 }
 
 function cmdOpen() {
@@ -906,11 +942,12 @@ const HELP = `qb: Qubicle helper
   qb merge <owner/repo> <pr>                     merge if owned (or delegated: orchestrator only), approved, green
   qb digest morning|evening|pulse                ask the orchestrator for a digest
   qb workspaces                                  local (non-GitHub) workspaces
-  qb close <id> "why"                            retire a stale or superseded ask`;
+  qb close <id> "why"                            retire a stale or superseded ask
+  qb heal                                        relaunch seats with no Claude/Codex running`;
 
 const [cmd, ...args] = process.argv.slice(2);
 const table = {
-  status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, close: cmdClose, feed: cmdFeed,
+  status: cmdStatus, mode: cmdMode, inbox: cmdInbox, answer: cmdAnswer, close: cmdClose, heal: cmdHeal, feed: cmdFeed,
   ask: cmdAsk, notify: cmdNotify, wt: cmdWt, policy: cmdPolicy, approve: cmdApprove,
   merge: cmdMerge, digest: cmdDigest, open: cmdOpen, relaunch: cmdRelaunch, workspaces: cmdWorkspaces,
   goal: cmdGoal, decide: cmdDecide, propose: cmdPropose, tick: cmdTick, critique: cmdCritique, blind: cmdBlind, watch: cmdWatch, sandbox: cmdSandbox, usage: cmdUsage,
