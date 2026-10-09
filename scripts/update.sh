@@ -17,7 +17,11 @@ step() { # name, version-cmd, update-cmd...
   local before after; before=$(ver $vcmd)
   if "$@" >>"$STATE/logs/update.log" 2>&1; then
     after=$(ver $vcmd)
-    [[ "$before" != "$after" ]] && changed+=("$name ${before:-?} → ${after:-?}")
+    if [[ -z "$after" ]]; then
+      failed+=("$name (no version after update, may be broken)")
+    elif [[ "$before" != "$after" ]]; then
+      changed+=("$name ${before:-?} → $after")
+    fi
   else
     failed+=("$name")
   fi

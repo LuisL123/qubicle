@@ -616,6 +616,8 @@ function checkDigests() {
   const files = fs.readdirSync(dir);
   const missed = missedDigest(local(), files);
   if (missed) { log(`digest: catching up on missed ${missed}`); cmdDigest([missed]); return; }
+  // The watchdog already told Luis the orchestrator is down; retries would only add noise.
+  if (readJson(p("watch.json"), { seats: {} }).seats?.["lead.orchestrator"]?.crashAlerted) return;
   const state = readJson(p("digest-retries.json"), {});
   const prompts = files.filter((f) => f.endsWith(".prompt.md"))
     .map((name) => ({ name, ageMin: (Date.now() - fs.statSync(path.join(dir, name)).mtimeMs) / 60000 }));
