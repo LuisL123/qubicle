@@ -40,7 +40,17 @@ for p in "${KEEP[@]}"; do
   [[ -e "$p" ]] && cp -Rp "$p" "$STATE/pinned/" 2>/dev/null
 done
 
+codex_before=$(ver codex --version)
 step codex   "codex --version"  npm install -g @openai/codex@latest --silent
+# A broken Codex keeps both Codex seats from launching (OpenRig runs codex --help
+# first), so roll back to the version that worked.
+if [[ -n "$codex_before" ]] && ! codex --help >/dev/null 2>&1; then
+  if npm install -g "@openai/codex@$codex_before" --silent >>"$STATE/logs/update.log" 2>&1 && codex --help >/dev/null 2>&1; then
+    changed+=("codex rolled back to $codex_before (latest was broken)")
+  else
+    failed+=("codex (broken after update, rollback to $codex_before failed)")
+  fi
+fi
 step claude  "claude --version" claude update
 step herdr   "herdr --version"  brew upgrade herdr
 step gh      "gh --version"     brew upgrade gh
