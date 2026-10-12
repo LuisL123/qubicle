@@ -57,6 +57,11 @@ for s in "${CLAUDE_SEATS[@]}"; do
     fs.writeFileSync(f, JSON.stringify(s, null, 2) + "\n");
   ' "$f" "$ROOT" "$ROOT/work" "$STATE" $(node "$ROOT/bin/qb.mjs" workspaces | cut -f2)
 done
+# Subagent definitions (agents/qb/subagents) for every Claude seat.
+for s in "${CLAUDE_SEATS[@]}"; do
+  mkdir -p "$ROOT/seats/$s/.claude/agents"
+  cp "$ROOT"/agents/qb/subagents/*.md "$ROOT/seats/$s/.claude/agents/"
+done
 
 # Codex's update prompt blocks unattended seats; scripts/update.sh updates it nightly instead.
 CODEX_CFG="$HOME/.codex/config.toml"

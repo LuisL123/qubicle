@@ -30,3 +30,6 @@ workspaces:
   - name: midas-bench-arms
     path: ~/midas/bench-arms
     rules: ~/qubicle/work/specs/midas-bench/notion.md
+  - name: midas-crm
+    path: ~/qubicle/work/specs/midas-crm
+    rules: ~/qubicle/work/specs/midas-crm/README.md

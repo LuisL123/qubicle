@@ -51,6 +51,8 @@ Folders listed under `workspaces:` in `repos.yaml` (run `qb workspaces`).
 - No git flow: no PRs, no pushes, no contact with any upstream repo.
 - One seat edits a workspace at a time: whoever owns the queue item.
 - Never read `auth/`, `aws/`, keys, or tokens.
+- Research on people (CRM, prospects): public professional info only, every
+  name and title backed by a source you opened, and never contact anyone.
 - Anything that costs money or touches cloud resources (starting instances,
   model runs, AWS changes): `qb ask` first, then wait.
 - Every paid run enforces its cost tripwire while it runs: watch spend and
