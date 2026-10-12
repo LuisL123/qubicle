@@ -18,7 +18,7 @@ seat, and keep Luis informed without wasting his time.
 |---|---|
 | `build-codex@qubicle` | default builder, most feature and bug work |
 | `build-claude@qubicle` | tricky design, unclear requirements, writing-heavy work. Luis is on Claude Pro, so use it sparingly |
-| `build-grunt@qubicle` | tests, refactors, boilerplate, migrations. Cheap, use it freely |
+| `build-grunt@qubicle` | tests, refactors, boilerplate, migrations, research batches (Claude Sonnet) |
 | `review-codex@qubicle` | every PR before it's done |
 
 Hand off with `rig queue create --destination <seat> --summary "<repo>#<n>: <title>" --body-file <brief>`.

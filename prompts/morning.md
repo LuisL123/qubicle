@@ -18,6 +18,6 @@ Write {{OUT}} in this shape. Max 15 lines. Plain words.
 - <decision or review, link>  (or "Nothing.")
 ```
 
-Also run `qb usage` and add one line: any seat burning far more than the others, any provider limit signal, and the DeepSeek balance if it's under $2.
+Also run `qb usage` and add one line: any seat burning far more than the others, any provider limit signal, and the DeepSeek balance only if a seat still runs on DeepSeek and it's under $2.
 Then assign today's first items to builders if they're idle.
 Finally run: qb notify --level digest --file {{OUT}} "Morning plan ready"
