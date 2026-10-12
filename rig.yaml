@@ -37,6 +37,7 @@ pods:
         agent_ref: "local:agents/grunt"
         runtime: claude-code
         profile: default
+        model: sonnet   # was DeepSeek until Oct 12; agents/qb/deepseek.fragment.json switches it back
         cwd: seats/grunt
         permission_policy: builtin:yolo
 

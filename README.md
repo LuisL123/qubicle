@@ -8,7 +8,7 @@ while you watch, or while you're away.
 | `lead-orchestrator` | Claude Code | picks work, routes it, writes digests |
 | `build-codex` | Codex | main builder |
 | `build-claude` | Claude Code | hard or writing-heavy work |
-| `build-grunt` | Claude Code on DeepSeek | tests, refactors, boilerplate |
+| `build-grunt` | Claude Code (Sonnet) | tests, refactors, boilerplate |
 | `review-codex` | Codex | reviews every PR, merges owned repos |
 
 ## Setup (macOS)
