@@ -7,13 +7,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest } from "./lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fs.realpathSync(fileURLToPath(import.meta.url))), "..");
 const HOME = process.env.QUBICLE_HOME || path.join(os.homedir(), ".qubicle");
 const WORK = path.join(ROOT, "work");
 const RIG = "qubicle";
 const ORCH = `lead-orchestrator@${RIG}`;
+const REVIEWER = `review-codex@${RIG}`;
 const APPROVED_LABEL = "qb-approved";
 
 const p = (...xs) => path.join(HOME, ...xs);
@@ -674,6 +675,9 @@ function policyOf(repo) {
   checkRepo(repo);
   const entry = loadRepos().find((r) => r.repo?.toLowerCase() === repo.toLowerCase());
   if (!entry) return { policy: "shared", reason: "not listed in repos.yaml" };
+  // delegated: the orchestrator merges, after the reviewer's approval of the exact head commit.
+  // No owner or contributor check: the repo carries upstream history by design.
+  if (entry.policy === "delegated") return { policy: "delegated", reason: "listed as delegated: the orchestrator merges after review-codex approves the head commit" };
   if (entry.policy !== "owned") return { policy: "shared", reason: "listed as shared" };
   const me = gh(["api", "user", "--jq", ".login"]).toLowerCase();
   if (repo.split("/")[0].toLowerCase() !== me) return { policy: "shared", reason: `owner is not ${me}` };
@@ -725,20 +729,25 @@ function cmdApprove([repo, pr, ...rest]) {
   if (!pr) die('usage: qb approve <owner/repo> <pr> [--note "..."]');
   const { opts } = parseArgs(rest);
   const pol = policyOf(repo);
-  writeJson(p("approvals", `${repo.replace("/", "__")}#${pr}.json`), { repo, pr, by: process.env.OPENRIG_SESSION_NAME || "luis", at: now(), note: opts.note || null });
+  // delegated: record the head commit being approved; a later push makes the approval stale. No labels on the shared repo.
+  const sha = pol.policy === "delegated" ? gh(["pr", "view", pr, "-R", repo, "--json", "headRefOid", "--jq", ".headRefOid"]) : undefined;
+  writeJson(p("approvals", `${repo.replace("/", "__")}#${pr}.json`), { repo, pr, by: process.env.OPENRIG_SESSION_NAME || "luis", at: now(), note: opts.note || null, ...(sha ? { sha } : {}) });
   if (pol.policy === "owned") {
     tryRun("gh", ["label", "create", APPROVED_LABEL, "-R", repo, "--color", "2da44e", "--description", "Reviewed by Qubicle", "--force"]);
     gh(["pr", "edit", pr, "-R", repo, "--add-label", APPROVED_LABEL]);
   }
   // Shared repos: no labels or comments on other people's repos. Approval stays local.
   feed({ level: "info", text: `Approved ${repo}#${pr} (${pol.policy})` });
-  console.log(pol.policy === "owned" ? `approved. next: qb merge ${repo} ${pr}` : "approved locally. shared repo: Luis merges.");
+  console.log(pol.policy === "owned" ? `approved. next: qb merge ${repo} ${pr}`
+    : pol.policy === "delegated" ? `approved ${sha.slice(0, 7)} locally. the orchestrator merges with qb merge ${repo} ${pr}; a new push needs a new approval.`
+    : "approved locally. shared repo: Luis merges.");
 }
 
 function cmdMerge([repo, pr]) {
   checkRepo(repo);
   if (!pr) die("usage: qb merge <owner/repo> <pr>");
   const pol = policyOf(repo);
+  if (pol.policy === "delegated") return mergeDelegated(repo, pr);
   if (pol.policy !== "owned") die(`refusing: ${repo} is shared (${pol.reason}). Ask Luis.`);
 
   let info;
@@ -763,6 +772,29 @@ function cmdMerge([repo, pr]) {
 
   gh(["pr", "merge", pr, "-R", repo, "--squash", "--delete-branch"]);
   feed({ level: "info", text: `Merged ${info.url}` });
+  console.log(`merged ${info.url}`);
+}
+
+// Delegated repos (repos.yaml `policy: delegated`): only the orchestrator merges, and only a PR whose
+// current head commit the reviewer approved. Spec: work/specs/qubicle/delegated-merge.md.
+function mergeDelegated(repo, pr) {
+  const seatName = process.env.OPENRIG_SESSION_NAME || "";
+  if (seatName !== ORCH) die(`refusing to merge ${repo}#${pr}:\n  - only ${ORCH} merges delegated repos (you are ${seatName || "not a seat"})`);
+  const entry = loadRepos().find((r) => r.repo?.toLowerCase() === repo.toLowerCase());
+  let info;
+  for (let i = 0; i < 6; i++) {
+    info = JSON.parse(gh(["pr", "view", pr, "-R", repo, "--json", "state,isDraft,mergeable,headRefOid,statusCheckRollup,url"]));
+    if (info.mergeable !== "UNKNOWN") break;
+    spawnSync("sleep", ["3"]);
+  }
+  const approval = readJson(p("approvals", `${repo.replace("/", "__")}#${pr}.json`), null);
+  const files = JSON.parse(gh(["pr", "view", pr, "-R", repo, "--json", "files"])).files.map((f) => f.path);
+  const problems = delegatedMergeProblems({ seat: seatName, orchestrator: ORCH, reviewer: REVIEWER, info, approval, files,
+    ignore: entry?.ignore_checks || [], protectedPatterns: entry?.protected || [] });
+  if (problems.length) die(`refusing to merge ${repo}#${pr}:\n  - ${problems.join("\n  - ")}`);
+  // --match-head-commit: GitHub itself refuses if the head moved since the check above.
+  gh(["pr", "merge", pr, "-R", repo, "--squash", "--delete-branch", "--match-head-commit", info.headRefOid]);
+  feed({ level: "info", text: `Merged ${info.url} (delegated, approved at ${info.headRefOid.slice(0, 7)})` });
   console.log(`merged ${info.url}`);
 }
 
@@ -869,9 +901,9 @@ const HELP = `qb: Qubicle helper
   qb ask "<question>" [--options "a|b"] [--project p] [--why "..."] [--big]   (agents) ask Luis
   qb notify "<text>" [--level info|digest|urgent] [--file f]
   qb wt <owner/repo> <branch> [--base main]      worktree path for a branch
-  qb policy <owner/repo>                         owned or shared
+  qb policy <owner/repo>                         owned, shared or delegated
   qb approve <owner/repo> <pr>                   mark reviewed
-  qb merge <owner/repo> <pr>                     merge if owned, approved, green
+  qb merge <owner/repo> <pr>                     merge if owned (or delegated: orchestrator only), approved, green
   qb digest morning|evening|pulse                ask the orchestrator for a digest
   qb workspaces                                  local (non-GitHub) workspaces
   qb close <id> "why"                            retire a stale or superseded ask`;

@@ -56,6 +56,7 @@ of results. Log in the results which seats were blind and which weren't.
   phone, so be even shorter.
 - Use the decision levels in CULTURE.md. Default to `qb decide`, then
   `qb propose`; `qb ask` only for level 3.
+- Delegated repo (`qb policy` says delegated, e.g. midas-reviewer): after review-codex approves the head commit and CI is green, you merge it yourself with `qb merge`. A new push needs a new approval.
 - Shared-repo PR approved by the reviewer: `qb ask "<repo>#<pr> reviewed and green. Merge?"`.
 - Midas through `qb`: decision, options and cost in a few plain lines. No code,
   prompts, grader rules or names. Write details and write-ups to a file in

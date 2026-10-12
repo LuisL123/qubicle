@@ -9,6 +9,11 @@ repos:
     policy: owned
     # Team setup: PRs touching these always need Luis, even on an owned repo.
     protected: [rig.yaml, CULTURE.md, agents/, repos.yaml, config.yaml, bin/qb.mjs, bin/lib.mjs]
+  # delegated: the orchestrator merges, after review-codex approves the PR's head commit.
+  # CodeQL ("Analyze (python)") cannot run on the free plan, so it is not required.
+  - repo: midas-intelligence/midas-reviewer
+    policy: delegated
+    ignore_checks: ["Analyze (python)"]
   # - repo: luis/qubicle
   #   policy: owned
   # - repo: midas-org/some-repo

@@ -15,9 +15,11 @@ export function parseArgs(argv) {
 }
 
 // List of checks that are not green. An empty array means all green.
-export function checksGreen(rollup) {
+// `ignore` names checks to skip (repos.yaml ignore_checks, delegated repos only).
+export function checksGreen(rollup, ignore = []) {
   const bad = [];
   for (const c of rollup || []) {
+    if (ignore.includes(c.name) || ignore.includes(c.context)) continue;
     if (c.__typename === "CheckRun") {
       if (c.status !== "COMPLETED") bad.push(`${c.name}: ${c.status.toLowerCase()}`);
       else if (!["SUCCESS", "NEUTRAL", "SKIPPED"].includes(c.conclusion)) bad.push(`${c.name}: ${c.conclusion.toLowerCase()}`);
@@ -64,4 +66,25 @@ export function quietSinceLastDigest(rows) {
   while (i >= 0 && rows[i].level !== "digest") i--;
   if (i < 0) return false;
   return rows.slice(i + 1).every((r) => QUIET_LEVELS.has(r.level));
+}
+
+// Why a delegated merge must be refused; an empty array means go. Pure: the caller fetches
+// `info` (gh pr view: state, isDraft, mergeable, headRefOid, statusCheckRollup), the local
+// `approval` record ({by, sha}) and the PR's file list.
+export function delegatedMergeProblems({ seat, orchestrator, reviewer, info, approval, files, ignore = [], protectedPatterns = [] }) {
+  const bad = [];
+  if (seat !== orchestrator) bad.push(`only ${orchestrator} merges delegated repos (you are ${seat || "not a seat"})`);
+  if (info.state !== "OPEN") bad.push(`PR is ${String(info.state).toLowerCase()}`);
+  if (info.isDraft) bad.push("PR is a draft");
+  if (!approval) bad.push("no approval on record (the reviewer runs qb approve first)");
+  else {
+    if (approval.by !== reviewer) bad.push(`approval is by ${approval.by}, not ${reviewer}`);
+    if (!approval.sha) bad.push("approval has no commit SHA (approved before delegated mode, or not a delegated approval); approve again");
+    else if (approval.sha !== info.headRefOid) bad.push(`approval is for ${approval.sha.slice(0, 7)} but the PR head is now ${String(info.headRefOid).slice(0, 7)}: a push after approval needs a new approval`);
+  }
+  if (info.mergeable !== "MERGEABLE") bad.push(`not mergeable (${String(info.mergeable).toLowerCase()})`);
+  bad.push(...checksGreen(info.statusCheckRollup, ignore));
+  const hits = protectedHits(files, protectedPatterns);
+  if (hits.length) bad.push(`touches protected files (${hits.join(", ")}): Luis merges this one`);
+  return bad;
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest } from "../bin/lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems } from "../bin/lib.mjs";
 
 // ---------- parseArgs ----------
 
@@ -197,4 +197,70 @@ test("quietSinceLastDigest", () => {
   assert.equal(quietSinceLastDigest([{ level: "chat" }, { level: "digest" }, { level: "mode" }]), true);
   assert.equal(quietSinceLastDigest([{ level: "digest" }, { level: "decided" }]), false);
   assert.equal(quietSinceLastDigest([{ level: "chat" }]), false);
+});
+
+// ---------- delegated merge ----------
+
+test("checksGreen: ignore skips a named check run and a legacy context, nothing else", () => {
+  const rollup = [
+    { __typename: "CheckRun", name: "Analyze (python)", status: "COMPLETED", conclusion: "FAILURE" },
+    { __typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: "FAILURE" },
+    { context: "ci/legacy", state: "FAILURE" },
+  ];
+  assert.deepEqual(checksGreen(rollup, ["Analyze (python)"]), ["test: failure", "ci/legacy: failure"]);
+  assert.deepEqual(checksGreen(rollup, ["Analyze (python)", "test", "ci/legacy"]), []);
+  assert.deepEqual(checksGreen(rollup), ["Analyze (python): failure", "test: failure", "ci/legacy: failure"]);
+});
+
+const ORCH = "lead-orchestrator@qubicle", REV = "review-codex@qubicle", HEAD = "a".repeat(40);
+const good = () => ({
+  seat: ORCH, orchestrator: ORCH, reviewer: REV,
+  info: { state: "OPEN", isDraft: false, mergeable: "MERGEABLE", headRefOid: HEAD, statusCheckRollup: [{ __typename: "CheckRun", name: "test", status: "COMPLETED", conclusion: "SUCCESS" }] },
+  approval: { by: REV, sha: HEAD }, files: ["src/a.py"], ignore: ["Analyze (python)"], protectedPatterns: [],
+});
+
+test("delegatedMergeProblems: the orchestrator, an approval of the current head and green checks pass", () => {
+  assert.deepEqual(delegatedMergeProblems(good()), []);
+});
+
+test("delegatedMergeProblems: any other seat is refused", () => {
+  for (const seat of ["build-claude@qubicle", "review-codex@qubicle", "", undefined]) {
+    const bad = delegatedMergeProblems({ ...good(), seat });
+    assert.equal(bad.length, 1);
+    assert.match(bad[0], /only lead-orchestrator@qubicle merges delegated repos/);
+  }
+});
+
+test("delegatedMergeProblems: an approval for an older commit is refused after a push", () => {
+  const g = good(); g.info.headRefOid = "b".repeat(40);
+  const bad = delegatedMergeProblems(g);
+  assert.equal(bad.length, 1);
+  assert.match(bad[0], /approval is for aaaaaaa but the PR head is now bbbbbbb/);
+});
+
+test("delegatedMergeProblems: no approval, a non-reviewer approval and an approval with no SHA are refused", () => {
+  assert.match(delegatedMergeProblems({ ...good(), approval: null })[0], /no approval on record/);
+  assert.match(delegatedMergeProblems({ ...good(), approval: { by: "luis", sha: HEAD } })[0], /approval is by luis, not review-codex@qubicle/);
+  assert.match(delegatedMergeProblems({ ...good(), approval: { by: REV } })[0], /no commit SHA/);
+});
+
+test("delegatedMergeProblems: draft, closed and unmergeable PRs are refused", () => {
+  const g = good(); g.info.isDraft = true; g.info.state = "CLOSED"; g.info.mergeable = "CONFLICTING";
+  const bad = delegatedMergeProblems(g);
+  assert.ok(bad.some((b) => /closed/.test(b)) && bad.some((b) => /draft/.test(b)) && bad.some((b) => /not mergeable \(conflicting\)/.test(b)));
+});
+
+test("delegatedMergeProblems: ignore_checks excuses only the listed check", () => {
+  const g = good();
+  g.info.statusCheckRollup.push({ __typename: "CheckRun", name: "Analyze (python)", status: "COMPLETED", conclusion: "FAILURE" });
+  assert.deepEqual(delegatedMergeProblems(g), []);
+  g.info.statusCheckRollup.push({ __typename: "CheckRun", name: "lint", status: "COMPLETED", conclusion: "FAILURE" });
+  assert.deepEqual(delegatedMergeProblems(g), ["lint: failure"]);
+  g.ignore = [];
+  assert.equal(delegatedMergeProblems(g).length, 2);
+});
+
+test("delegatedMergeProblems: protected paths are refused", () => {
+  const g = { ...good(), files: ["rig.yaml"], protectedPatterns: ["rig.yaml"] };
+  assert.match(delegatedMergeProblems(g)[0], /touches protected files \(rig.yaml\)/);
 });
