@@ -901,7 +901,7 @@ const HELP = `qb: Qubicle helper
   qb ask "<question>" [--options "a|b"] [--project p] [--why "..."] [--big]   (agents) ask Luis
   qb notify "<text>" [--level info|digest|urgent] [--file f]
   qb wt <owner/repo> <branch> [--base main]      worktree path for a branch
-  qb policy <owner/repo>                         owned or shared
+  qb policy <owner/repo>                         owned, shared or delegated
   qb approve <owner/repo> <pr>                   mark reviewed
   qb merge <owner/repo> <pr>                     merge if owned (or delegated: orchestrator only), approved, green
   qb digest morning|evening|pulse                ask the orchestrator for a digest

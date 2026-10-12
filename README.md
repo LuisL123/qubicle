@@ -103,5 +103,6 @@ Running seats switch to new versions on their next restart. Paths under
 - All work happens in worktrees under `work/` and lands as PRs.
 - `owned` repos: reviewer merges after approval and green CI.
 - `shared` repos (Midas, anything with other contributors): you merge.
+- `delegated` repos (midas-reviewer): the orchestrator merges after review-codex approves the head commit.
 - Local workspaces (non-git folders): edited in place, no PRs, costly runs need your OK.
 - Docs stay short. See `CULTURE.md`.
