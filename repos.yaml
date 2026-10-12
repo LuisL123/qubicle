@@ -14,6 +14,8 @@ repos:
   - repo: midas-intelligence/midas-reviewer
     policy: delegated
     ignore_checks: ["Analyze (python)"]
+    # CI workflows run with the repo's secrets, so changes to them still go to Luis.
+    protected: [.github/]
   # - repo: luis/qubicle
   #   policy: owned
   # - repo: midas-org/some-repo
