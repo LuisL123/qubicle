@@ -8,7 +8,7 @@
 set -o pipefail   # macOS bash 3.2: no -u (empty arrays), no mapfile
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STATE="${QUBICLE_HOME:-$HOME/.qubicle}"
-QB=(node "$ROOT/bin/qb.mjs")
+QB=(env OPENRIG_SESSION_NAME=update node "$ROOT/bin/qb.mjs")
 changed=() failed=()
 
 ver() { "$@" 2>/dev/null | head -1 | grep -Eo '[0-9]+(\.[0-9]+)+' | head -1; }
@@ -76,7 +76,7 @@ fi
 for p in "${KEEP[@]}"; do
   if [[ ! -e "$p" && -e "$STATE/pinned/$(basename "$p")" ]]; then
     mkdir -p "$(dirname "$p")" && cp -Rp "$STATE/pinned/$(basename "$p")" "$(dirname "$p")/"
-    changed+=("restored $(basename "$p")")
+    changed+=("re-pinned $(basename "$p") (update.keep; the update had removed it)")
   fi
 done
 
