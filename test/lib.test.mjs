@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems } from "../bin/lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems, reaskChurn } from "../bin/lib.mjs";
 
 // ---------- parseArgs ----------
 
@@ -263,4 +263,27 @@ test("delegatedMergeProblems: ignore_checks excuses only the listed check", () =
 test("delegatedMergeProblems: protected paths are refused", () => {
   const g = { ...good(), files: ["rig.yaml"], protectedPatterns: ["rig.yaml"] };
   assert.match(delegatedMergeProblems(g)[0], /touches protected files \(rig.yaml\)/);
+});
+
+// ---------- reaskChurn ----------
+
+test("reaskChurn: two self-closes in the hour block a new ask", () => {
+  const t = Date.parse("2026-10-14T00:40:00Z");
+  const asks = [
+    { id: "a", from: "o", status: "closed", answered: "2026-10-14T00:18:00Z", answer: "folded into the merge ask" },
+    { id: "b", from: "o", status: "closed", answered: "2026-10-14T00:27:00Z", answer: "#47 is getting one more change" },
+  ];
+  assert.deepEqual(reaskChurn(asks, "o", t), ["a", "b"]);
+});
+
+test("reaskChurn: closes because Luis acted, old closes and other seats don't count", () => {
+  const t = Date.parse("2026-10-14T00:40:00Z");
+  const asks = [
+    { id: "a", from: "o", status: "closed", answered: "2026-10-14T00:18:00Z", answer: "closed: Luis merged #44" },
+    { id: "b", from: "o", status: "closed", answered: "2026-10-13T22:00:00Z", answer: "superseded" },
+    { id: "c", from: "x", status: "closed", answered: "2026-10-14T00:30:00Z", answer: "superseded" },
+    { id: "d", from: "o", status: "closed", answered: "2026-10-14T00:31:00Z", answer: "superseded" },
+    { id: "e", from: "o", status: "answered", answered: "2026-10-14T00:32:00Z", answer: "yes" },
+  ];
+  assert.deepEqual(reaskChurn(asks, "o", t), []);
 });

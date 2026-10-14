@@ -88,3 +88,13 @@ export function delegatedMergeProblems({ seat, orchestrator, reviewer, info, app
   if (hits.length) bad.push(`touches protected files (${hits.join(", ")}): Luis merges this one`);
   return bad;
 }
+
+// Re-ask churn: a seat that closed 2+ of its own asks in the last hour (not
+// because Luis acted) and now asks again is pinging Luis's phone to add items.
+// Returns the ids of those closes, or [] when the new ask is fine.
+export function reaskChurn(asks, from, nowMs, { windowMin = 60, max = 2 } = {}) {
+  const since = nowMs - windowMin * 60000;
+  const hits = asks.filter((a) => a && a.from === from && a.status === "closed"
+    && a.answered && Date.parse(a.answered) >= since && !/\bLuis\b/i.test(a.answer || ""));
+  return hits.length >= max ? hits.map((a) => a.id) : [];
+}

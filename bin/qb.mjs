@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems } from "./lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems, reaskChurn } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fs.realpathSync(fileURLToPath(import.meta.url))), "..");
 const HOME = process.env.QUBICLE_HOME || path.join(os.homedir(), ".qubicle");
@@ -106,6 +106,11 @@ function cmdAsk(argv) {
   const options = typeof opts.options === "string" ? opts.options.split("|").map((s) => s.trim()) : [];
   const project = typeof opts.project === "string" ? opts.project : null;
   const why = typeof opts.why === "string" ? opts.why : null;
+  if (!opts.now && fs.existsSync(p("inbox"))) {
+    const all = fs.readdirSync(p("inbox")).filter((f) => f.endsWith(".json")).map((f) => readJson(p("inbox", f)));
+    const churn = reaskChurn(all, from, Date.now());
+    if (churn.length) die(`not sent: you closed ${churn.join(", ")} in the last hour and are asking again. Every ask pings Luis's phone. Keep one ask open and list newly ready items in your next digest; re-ask when an hour has passed. Use --now only if work is blocked on this.`);
+  }
   const c = opts.big && project ? critique(project, question, why, from) : null;
   writeJson(p("inbox", `${id}.json`), { id, kind: "ask", from, question, options, project, why, critique: c, status: "open", created: now() });
   feed({ level: "decision", id, text: question, options, why, from, critique: c?.text });
@@ -936,7 +941,7 @@ const HELP = `qb: Qubicle helper
   qb watch [--dry]                               run the watchdog once (it also runs every 5 min)
   qb sandbox on|off <pod.member> | status        OS-level sandbox for a Claude seat's shell commands
   qb usage [--window 24h]                        tokens per seat, provider limits, DeepSeek balance
-  qb ask "<question>" [--options "a|b"] [--project p] [--why "..."] [--big]   (agents) ask Luis
+  qb ask "<question>" [--options "a|b"] [--project p] [--why "..."] [--big] [--now]   (agents) ask Luis
   qb notify "<text>" [--level info|digest|urgent] [--file f]
   qb wt <owner/repo> <branch> [--base main]      worktree path for a branch
   qb policy <owner/repo>                         owned, shared or delegated

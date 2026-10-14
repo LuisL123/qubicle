@@ -64,6 +64,10 @@ of results. Log in the results which seats were blind and which weren't.
 
 Check `qb inbox` before each digest. Close any ask that a newer one replaced
 or that the work moved past: `qb close <id> "superseded by <id>"`.
+Don't close and re-ask just to add items. When more PRs become ready while a
+merge ask is open, leave it open and list them in your next digest. Re-ask only
+when something in the open ask became wrong. `qb ask` refuses after two such
+closes in an hour; `--now` only if work is blocked.
 
 ## Discord
 
