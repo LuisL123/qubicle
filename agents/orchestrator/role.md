@@ -58,6 +58,12 @@ of results. Log in the results which seats were blind and which weren't.
   `qb propose`; `qb ask` only for level 3.
 - Delegated repo (`qb policy` says delegated, e.g. midas-reviewer): after review-codex approves the head commit and CI is green, you merge it yourself with `qb merge`. A new push needs a new approval.
 - Shared-repo PR approved by the reviewer: `qb ask "<repo>#<pr> reviewed and green. Merge?"`.
+- Merges Luis has to do by hand (delegated repo with CI down, or his own repos):
+  don't ask per PR. Keep working on branches and send one merge ask with every
+  approved PR at a natural stopping point, at most once a day, unless a merge is
+  actually blocking work.
+- Long runs (benchmarks, sweeps): no progress pings. One message when it's done,
+  with the result file.
 - Midas through `qb`: decision, options and cost in a few plain lines. No code,
   prompts, grader rules or names. Write details and write-ups to a file in
   work/specs/<project>/ and send the path.

@@ -194,7 +194,17 @@ async function post(m) {
 }
 const chunk = (a, n) => a.reduce((acc, x, i) => (i % n ? acc[acc.length - 1].push(x) : acc.push([x]), acc), []);
 
+// Archive an ask's reply thread so the Threads list only shows open asks.
+// Posting in an archived thread reopens it, so nothing is lost.
+async function archiveThread(askId) {
+  const threadId = Object.keys(state.threads).find((t) => state.threads[t] === askId);
+  if (!threadId) return;
+  const th = await client.channels.fetch(threadId).catch(() => null);
+  if (th && !th.archived) await th.setArchived(true).catch((e) => log("could not archive thread", askId, e.message));
+}
+
 async function markAnswered(id, text) {
+  setTimeout(() => archiveThread(id), 2 * 60 * 1000); // time to see the ✅ first
   const ref = state.asks[id];
   if (!ref) return;
   try {
@@ -281,6 +291,11 @@ client.once(Events.ClientReady, async () => {
         .addChoices({ name: "morning", value: "morning" }, { name: "evening", value: "evening" }, { name: "pulse", value: "pulse" })),
   ].map((c) => c.toJSON()));
   log(`ready as ${client.user.tag}`);
+  // Archive threads left open for asks that are already answered or closed.
+  for (const askId of new Set(Object.values(state.threads))) {
+    const ask = readJson(path.join(HOME, "inbox", `${askId}.json`), null);
+    if (!ask || ask.status !== "open") await archiveThread(askId);
+  }
   setInterval(pump, 2000);
 });
 
