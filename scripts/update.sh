@@ -47,6 +47,9 @@ step codex   "codex --version"  npm install -g @openai/codex@latest --silent
 if [[ -n "$codex_before" ]] && ! codex --help >/dev/null 2>&1; then
   if npm install -g "@openai/codex@$codex_before" --silent >>"$STATE/logs/update.log" 2>&1 && codex --help >/dev/null 2>&1; then
     changed+=("codex rolled back to $codex_before (latest was broken)")
+    # Handled: drop the codex failure step() recorded so this isn't also an urgent ping.
+    keep=(); for f in ${failed[@]+"${failed[@]}"}; do [[ "$f" == codex* ]] || keep+=("$f"); done
+    failed=(${keep[@]+"${keep[@]}"})
   else
     failed+=("codex (broken after update, rollback to $codex_before failed)")
   fi
