@@ -79,7 +79,8 @@ fi
 for p in "${KEEP[@]}"; do
   if [[ ! -e "$p" && -e "$STATE/pinned/$(basename "$p")" ]]; then
     mkdir -p "$(dirname "$p")" && cp -Rp "$STATE/pinned/$(basename "$p")" "$(dirname "$p")/"
-    changed+=("re-pinned $(basename "$p") (update.keep; the update had removed it)")
+    # Routine (claude update prunes old versions daily): log it, don't put it in the note.
+    echo "re-pinned $(basename "$p") (update.keep)" >>"$STATE/logs/update.log"
   fi
 done
 
