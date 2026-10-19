@@ -98,3 +98,8 @@ export function reaskChurn(asks, from, nowMs, { windowMin = 60, max = 2 } = {}) 
     && a.answered && Date.parse(a.answered) >= since && !/\bLuis\b/i.test(a.answer || ""));
   return hits.length >= max ? hits.map((a) => a.id) : [];
 }
+
+// OpenRig refuses to resume a seat it has no resume token for and asks for --fresh.
+export const needsFreshLaunch = (out) => /unresumable|re-run with --fresh/i.test(out || "");
+// rig send refuses when the seat's terminal is sitting at a selection/approval prompt.
+export const atInteractivePrompt = (err) => /interactive prompt|selection_prompt/i.test(err || "");

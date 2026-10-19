@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems, reaskChurn } from "../bin/lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems, reaskChurn, needsFreshLaunch, atInteractivePrompt } from "../bin/lib.mjs";
 
 // ---------- parseArgs ----------
 
@@ -286,4 +286,11 @@ test("reaskChurn: closes because Luis acted, old closes and other seats don't co
     { id: "e", from: "o", status: "answered", answered: "2026-10-14T00:32:00Z", answer: "yes" },
   ];
   assert.deepEqual(reaskChurn(asks, "o", t), []);
+});
+
+test("needsFreshLaunch / atInteractivePrompt match OpenRig's refusals", () => {
+  assert.ok(needsFreshLaunch("Original session unresumable: no resume token was captured for this seat. Re-run with --fresh build.codex"));
+  assert.ok(!needsFreshLaunch("already running"));
+  assert.ok(atInteractivePrompt("Refused: 'lead-orchestrator@qubicle' is at an interactive prompt (selection_prompt)."));
+  assert.ok(!atInteractivePrompt("Refused: The bound foreground is an idle shell"));
 });

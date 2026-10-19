@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems, reaskChurn } from "./lib.mjs";
+import { parseArgs, checksGreen, protectedHits, missedDigest, staleDigests, quietSinceLastDigest, delegatedMergeProblems, reaskChurn, needsFreshLaunch, atInteractivePrompt } from "./lib.mjs";
 
 const ROOT = path.resolve(path.dirname(fs.realpathSync(fileURLToPath(import.meta.url))), "..");
 const HOME = process.env.QUBICLE_HOME || path.join(os.homedir(), ".qubicle");
@@ -174,8 +174,10 @@ function cmdClose([id, ...rest]) {
   console.log(`${id} closed`);
 }
 
+let lastRigSendError = "";
 function rigSend(session, text) {
   const r = spawnSync("rig", ["send", session, text], { encoding: "utf8" });
+  lastRigSendError = r.status === 0 ? "" : `${r.stderr || ""}${r.stdout || ""}`;
   if (r.status !== 0) log(`qb: could not reach ${session} (${(r.stderr || "").trim().split("\n")[0]})`);
   return r.status === 0;
 }
@@ -631,11 +633,16 @@ function checkDigests() {
     const st = state[base] || {};
     const promptFile = path.join(dir, `.${base}.prompt.md`);
     if (!st.resent) {
-      rigSend(ORCH, `[qb digest retry] This digest never arrived. Read and follow ${promptFile}`);
+      const sent = rigSend(ORCH, `[qb digest retry] This digest never arrived. Read and follow ${promptFile}`);
       st.resent = now(); dirty = true;
-      log(`digest: re-sent ${base}`);
+      log(sent ? `digest: re-sent ${base}` : `digest: re-send of ${base} refused`);
+      if (!sent && atInteractivePrompt(lastRigSendError)) {
+        // Say what's actually wrong instead of waiting 30 min to say "may be stuck".
+        feed({ from: "watchdog", level: "chat", text: `The orchestrator is waiting at a prompt in its terminal, so the ${base.split("-").pop()} digest can't go out. Open it (qb open) and answer the prompt; the digest follows on the next tick.` });
+        st.alerted = true;
+      }
     } else if (!st.alerted && Date.now() - Date.parse(st.resent) > 30 * 60000) {
-      feed({ level: "chat", text: `The ${base.split("-").pop()} digest (${base.slice(0, 15).replace("T", " ")}) never arrived, even after a retry. The orchestrator may be stuck; check it with qb open.` });
+      feed({ from: "watchdog", level: "chat", text: `The ${base.split("-").pop()} digest (${base.slice(0, 15).replace("T", " ")}) never arrived, even after a retry. The orchestrator may be stuck; check it with qb open.` });
       st.alerted = true; dirty = true;
     }
     state[base] = st;
@@ -856,7 +863,19 @@ function relaunchSeat(seatRef, force) {
   };
   walk(JSON.parse(out));
   if (!id) { log(`rig ${RIG} not found in rig ps. Is it up? (qb open)`); return 1; }
-  const r = spawnSync("rig", ["launch", id, seatRef.replace("-", ".")], { stdio: "inherit" });
+  const seat = seatRef.replace("-", ".");
+  const launch = (args) => {
+    const r = spawnSync("rig", args, { encoding: "utf8" });
+    process.stdout.write(`${r.stdout || ""}${r.stderr || ""}`);
+    return r;
+  };
+  let r = launch(["launch", id, seat]);
+  // After a reboot OpenRig may have no resume token for a seat and refuse to resume it.
+  // A fresh, primed seat beats a dead one (work lives in tickets and the queue, not the session).
+  if (r.status !== 0 && needsFreshLaunch(`${r.stdout}${r.stderr}`)) {
+    log(`qb: ${seat} can't be resumed, starting it fresh`);
+    r = launch(["launch", id, "--fresh", seat]);
+  }
   return r.status ?? 1;
 }
 
