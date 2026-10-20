@@ -636,9 +636,15 @@ function checkDigests() {
       const sent = rigSend(ORCH, `[qb digest retry] This digest never arrived. Read and follow ${promptFile}`);
       st.resent = now(); dirty = true;
       log(sent ? `digest: re-sent ${base}` : `digest: re-send of ${base} refused`);
+      if (sent) delete state._promptAlert;
       if (!sent && atInteractivePrompt(lastRigSendError)) {
-        // Say what's actually wrong instead of waiting 30 min to say "may be stuck".
-        feed({ from: "watchdog", level: "chat", text: `The orchestrator is waiting at a prompt in its terminal, so the ${base.split("-").pop()} digest can't go out. Open it (qb open) and answer the prompt; the digest follows on the next tick.` });
+        // Say what's actually wrong instead of waiting 30 min to say "may be stuck",
+        // but once per stuck spell, not once per digest; remind at most daily.
+        const last = state._promptAlert ? Date.parse(state._promptAlert) : 0;
+        if (Date.now() - last > 24 * 60 * MIN) {
+          feed({ from: "watchdog", level: "chat", text: `The orchestrator is waiting at a prompt in its terminal, so digests can't go out. Open it (qb open) and answer the prompt; the digest follows on the next tick.` });
+          state._promptAlert = now();
+        }
         st.alerted = true;
       }
     } else if (!st.alerted && Date.now() - Date.parse(st.resent) > 30 * 60000) {

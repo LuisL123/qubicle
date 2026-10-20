@@ -22,6 +22,10 @@ step() { # name, version-cmd, update-cmd...
     elif [[ "$before" != "$after" ]]; then
       changed+=("$name ${before:-?} → $after")
     fi
+  elif [[ -n "$before" && "$(ver $vcmd)" == "$before" ]]; then
+    # The update didn't go through (often a dropped download) but the old version still runs.
+    # Not urgent: tomorrow's run retries. Just mention it.
+    changed+=("$name update didn't go through, still on $before")
   else
     failed+=("$name")
   fi
