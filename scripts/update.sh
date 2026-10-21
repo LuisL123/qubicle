@@ -58,7 +58,9 @@ if [[ -n "$codex_before" ]] && ! codex --help >/dev/null 2>&1; then
     failed+=("codex (broken after update, rollback to $codex_before failed)")
   fi
 fi
-step claude  "claude --version" claude update
+# claude's download times out now and then at 4:30 AM (Oct 20, 21); one retry after a minute.
+retry_once() { "$@" || { sleep 60; "$@"; }; }
+step claude  "claude --version" retry_once claude update
 step herdr   "herdr --version"  brew upgrade herdr
 step gh      "gh --version"     brew upgrade gh
 # tmux is deliberately not upgraded: a new tmux can't attach to the running
