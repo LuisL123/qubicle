@@ -290,6 +290,7 @@ test("reaskChurn: closes because Luis acted, old closes and other seats don't co
 
 test("needsFreshLaunch / atInteractivePrompt match OpenRig's refusals", () => {
   assert.ok(needsFreshLaunch("Original session unresumable: no resume token was captured for this seat. Re-run with --fresh build.codex"));
+  assert.ok(needsFreshLaunch("Original session not resumed: the seat had no running occupant ... run: rig seat launch 'review.codex@qubicle' --fresh --reason \"<why>\"."));
   assert.ok(!needsFreshLaunch("already running"));
   assert.ok(atInteractivePrompt("Refused: 'lead-orchestrator@qubicle' is at an interactive prompt (selection_prompt)."));
   assert.ok(!atInteractivePrompt("Refused: The bound foreground is an idle shell"));

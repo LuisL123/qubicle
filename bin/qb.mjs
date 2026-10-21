@@ -880,7 +880,7 @@ function relaunchSeat(seatRef, force) {
   // A fresh, primed seat beats a dead one (work lives in tickets and the queue, not the session).
   if (r.status !== 0 && needsFreshLaunch(`${r.stdout}${r.stderr}`)) {
     log(`qb: ${seat} can't be resumed, starting it fresh`);
-    r = launch(["launch", id, "--fresh", seat]);
+    r = launch(["seat", "launch", `${seat}@${RIG}`, "--fresh", "--reason", "qb relaunch: no resumable session (e.g. after a reboot)"]);
   }
   return r.status ?? 1;
 }
