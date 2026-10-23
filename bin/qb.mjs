@@ -647,6 +647,10 @@ function checkDigests() {
         }
         st.alerted = true;
       }
+    } else if (!st.alerted && base.endsWith("pulse") && Date.now() - Date.parse(st.resent) > 30 * 60000) {
+      // A dropped pulse is low stakes (the next digest covers it); log it, don't ping.
+      log(`digest: ${base} never arrived after a retry (not pinging for a pulse)`);
+      st.alerted = true; dirty = true;
     } else if (!st.alerted && Date.now() - Date.parse(st.resent) > 30 * 60000) {
       feed({ from: "watchdog", level: "chat", text: `The ${base.split("-").pop()} digest (${base.slice(0, 15).replace("T", " ")}) never arrived, even after a retry. The orchestrator may be stuck; check it with qb open.` });
       st.alerted = true; dirty = true;
