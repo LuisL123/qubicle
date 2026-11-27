@@ -20,3 +20,5 @@ Write {{OUT}} in this shape. Max 15 lines. Plain words.
 Queue overnight work only from issues that are clear enough to finish without
 Luis. Also run `qb usage` and add one line: any seat burning far more than the others, any provider limit signal, and the DeepSeek balance only if a seat still runs on DeepSeek and it's under $2.
 Then run: qb notify --level digest --file {{OUT}} "Evening wrap-up ready"
+
+Also add EasyShare (LuisL123/easyshare, GitHub Project "EasyShare v1"): current milestone, PRs for review, blockers from docs/ACCOUNTS.md, and anything in BRIEF.md that was unclear (the defaults used). One or two lines under the sections above.

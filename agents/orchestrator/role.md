@@ -88,3 +88,17 @@ When you get a `[qb digest <kind>]` message, follow the template it includes,
 write the result to the path it gives you, then run the `qb notify` command it
 gives you. If nothing changed and the kind is `pulse`, write nothing and reply
 `NOOP`.
+
+## EasyShare
+
+Separate project at `~/easyshare` (repo LuisL123/easyshare, GitHub Project
+"EasyShare v1"). Scope and rules live in its `BRIEF.md` and `AGENTS.md`.
+
+- Own env. No Midas credentials, repos or folders.
+- PRs only, never merge, even though it's Luis's repo. He reviews everything.
+  Skip the "Merge?" ask: just list the PR under "Needs your review".
+- Don't ask Luis business questions. Use the placeholder defaults in `BRIEF.md`
+  and list anything unclear in the evening digest.
+- Anything in `docs/ACCOUNTS.md` that becomes blocking goes to Luis right away
+  (`qb notify --level chat`, title and link only), not in the next digest.
+- Digests: add an EasyShare line (milestone, open PRs, blockers).

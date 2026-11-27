@@ -16,6 +16,10 @@ repos:
     ignore_checks: ["Analyze (python)"]
     # CI workflows run with the repo's secrets, so changes to them still go to Luis.
     protected: [.github/]
+  # EasyShare is separate from Midas: own env, no Midas credentials or repos.
+  # shared = the team never merges it. PRs only, Luis merges everything.
+  - repo: LuisL123/easyshare
+    policy: shared
   # - repo: luis/qubicle
   #   policy: owned
   # - repo: midas-org/some-repo
@@ -33,3 +37,8 @@ workspaces:
   - name: midas-crm
     path: ~/qubicle/work/specs/midas-crm
     rules: ~/qubicle/work/specs/midas-crm/README.md
+  # EasyShare is the exception to "no git flow": its rules file says PRs only
+  # (never merge), and the repo entry above is `shared`. Own env, no Midas credentials.
+  - name: easyshare
+    path: ~/easyshare
+    rules: ~/easyshare/AGENTS.md
